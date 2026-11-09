@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taskwise</title>
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header>
+  <button id="sidebarBtn" class="ghost icon" title="Groups &amp; boards sidebar"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+  <h1><img class="logo" src="/static/icon.svg" alt="">Taskwise</h1>
+  <div class="seg" id="viewSeg">
+    <button data-view="board" title="Board (1)">Board</button>
+    <button data-view="list" title="List: one line per note (2)">List</button>
+    <button data-view="table" title="Table (3)">Table</button>
+    <button data-view="agenda" title="Agenda: notes by when they're due (4)">Agenda</button>
+    <button data-view="focus" title="Focus: overdue, today and urgent (5)">Focus</button>
+    <button data-view="tags" title="Tags: one column per tag (6)">Tags</button>
+    <button data-view="sections" title="Sections: same-named sections of every board side by side (7)">Sections</button>
+    <button data-view="bookmarks" title="Bookmarks: every board's bookmarks with their notes; drag to organize (8)">Bookmarks</button>
+  </div>
+  <button id="addBoardBtn" class="primary"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> New board</button>
+  <div class="spacer"></div>
+  <span id="updateNotice" hidden>update available: git pull and run install.sh</span>
+  <span id="status"></span>
+  <button id="settingsBtn" class="ghost" title="Settings"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg> Settings</button>
+</header>
+<div id="filters">
+  <input id="search" type="search" placeholder="Search notes…  ( / )">
+  <select id="dueFilter" title="Filter by due">
+    <option value="all">Any due</option>
+    <option value="overdue">Overdue</option>
+    <option value="today">Due today (or overdue)</option>
+    <option value="week">Due this week</option>
+    <option value="nextweek">Due by next week</option>
+    <option value="month">Due this month</option>
+    <option value="any">Has a due</option>
+    <option value="none">No due</option>
+  </select>
+  <select id="boardFilter" title="Filter by board"></select>
+  <select id="sectionFilter" title="Filter by section - sections with the same name on different boards show together"></select>
+  <div class="tag-filters" id="tagFilters"></div>
+  <span id="activeChips"></span>
+  <button id="clearFilters" class="ghost">Clear filters</button>
+  <div class="spacer"></div>
+  <button id="outOfSight" class="ghost" title="Open the sidebar to see and wake them"></button>
+  <span id="count"></span>
+</div>
+<div class="banner" id="offline">Taskwise has stopped — start it again from the app menu (or run <code>taskwise --open</code>); this page reconnects by itself.</div>
+<div class="banner" id="conflict">
+  <span>The board was changed on disk (another machine or tab?) while you had unsaved edits.</span>
+  <button id="takeTheirs">Load the version on disk</button>
+  <button id="keepMine" class="danger">Overwrite it with mine</button>
+</div>
+<div class="workspace">
+  <aside id="sidebar"></aside>
+  <main id="main"></main>
+</div>
+<div id="toast"></div>
+<script src="/static/due.js"></script>
+<script src="/static/app.js"></script>
+<script src="/static/views.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+.env
+node_modules/
+.vscode/
+.idea/
+*.swp
+.DS_Store
+.claude/
+board.json
+board.json.bak
+README.long.md

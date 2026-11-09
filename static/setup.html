@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Taskwise — setup</title>
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+<style>
+  @font-face { font-family: "Inter var"; font-weight: 100 900; font-display: swap; src: url("/static/fonts/inter-latin-wght-normal.woff2") format("woff2"); }
+  :root { color-scheme: dark; --bg: #0f1115; --panel: #16191e; --border: #2a2f37; --text: #e7e9ec; --danger: #f2555a; --btn: #3b82f6; --btn-hover: #5b9cff; --muted: #9ba1ab; --accent: #5b9cff; }
+  :root[data-theme="light"] { color-scheme: light; --bg: #f3f4f6; --panel: #ffffff; --border: #dcdfe5; --text: #16191d; --danger: #d92d35; --btn: #2563eb; --btn-hover: #1d4ed8; --muted: #5a616c; --accent: #2563eb; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    font-family: "Inter var", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; background: var(--bg); color: var(--text);
+  }
+  .box { width: min(480px, calc(100vw - 32px)); box-sizing: border-box; padding: 30px; box-shadow: 0 24px 60px rgba(0,0,0,0.3); border-radius: 14px !important; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  p { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  code { color: var(--accent); }
+  input {
+    width: 100%; box-sizing: border-box; padding: 9px 10px; margin: 14px 0 6px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 13px;
+  }
+  button { background: var(--btn); color: #fff; font-weight: 500; border: none; padding: 9px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  button:hover { background: var(--btn-hover); }
+  #err { color: var(--danger); font-size: 12px; min-height: 18px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>Welcome to Taskwise</h1>
+  <p>Choose a folder for your boards. Everything is kept in one file, <code>board.json</code>, inside it — pick a synced folder (Syncthing, Nextcloud…) to use the same boards on several machines. If the folder already has a <code>board.json</code>, it is opened as it is. You can switch folders later in Settings.</p>
+  <input id="dataDir" type="text" placeholder="~/taskwise" autofocus />
+  <div id="err"></div>
+  <button id="saveBtn">Use this folder</button>
+</div>
+<script>
+fetch("/api/settings").then(r => r.json()).then(s => { if (s.theme === "light") document.documentElement.dataset.theme = "light"; });
+fetch("/api/config").then(r => r.json()).then(cfg => {
+  document.getElementById("dataDir").value = cfg.default || "~/taskwise";
+});
+async function save() {
+  const data_dir = document.getElementById("dataDir").value.trim();
+  const err = document.getElementById("err");
+  err.textContent = "";
+  try {
+    const res = await fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data_dir }) });
+    const data = await res.json();
+    if (data.ok) location.reload();
+    else err.textContent = data.error || "Could not use that folder.";
+  } catch {
+    err.textContent = "Taskwise isn't running - start it again from the app menu (or run 'taskwise --open').";
+  }
+}
+
+// Hold the same /api/alive connection as the main page, so a server started
+// from the app menu doesn't stop itself while this page is open
+(function keepAlive() {
+  let offlineTimer = null;
+  const es = new EventSource("/api/alive");
+  es.onopen = () => { clearTimeout(offlineTimer); offlineTimer = null; document.getElementById("err").textContent = ""; };
+  es.onerror = () => {
+    if (!offlineTimer) offlineTimer = setTimeout(() => {
+      document.getElementById("err").textContent = "Taskwise has stopped - start it again from the app menu (or run 'taskwise --open').";
+    }, 4000);
+  };
+})();
+document.getElementById("saveBtn").addEventListener("click", save);
+document.getElementById("dataDir").addEventListener("keydown", e => { if (e.key === "Enter") save(); });
+</script>
+</body>
+</html>

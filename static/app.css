@@ -343,6 +343,16 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
   display: inline-flex; align-items: center; gap: 5px; max-width: 170px; height: 20px; font-size: calc(11px * var(--ui-scale)); color: var(--muted);
   text-decoration: none; border-radius: 6px; padding: 0 7px; font-weight: 500; background: var(--chip);
 }
+.lnk-wrap { display: inline-flex; align-items: center; max-width: 190px; border-radius: 6px; background: var(--chip); }
+.lnk-wrap .lnk { background: none; min-width: 0; padding-right: 3px; }
+.lnk-wrap:hover { background: var(--accent-bg); }
+.lnk-more, :root[data-theme="light"] .lnk-more {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 18px; height: 20px; padding: 0; margin-right: 2px;
+  background: none; border: none; box-shadow: none; color: var(--faint); border-radius: 5px; opacity: 0.55;
+}
+.lnk-wrap:hover .lnk-more { opacity: 1; }
+.lnk-more:hover { color: var(--text); background: var(--hover); }
+.lnk-more .ic { width: 13px; height: 13px; }
 .lnk span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lnk:hover { color: var(--accent); background: var(--accent-bg); }
 

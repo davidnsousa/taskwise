@@ -25,6 +25,7 @@ const ICON = {
   chevron: svg('<path d="m9 6 6 6-6 6"/>', 14),
   edit: svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>', 14),
   x: svg('<path d="M18 6 6 18M6 6l12 12"/>', 14),
+  copy: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>', 14),
   check: svg('<path d="M20 6 9 17l-5-5"/>', 12),
   clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 12),
   link: svg('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>', 12),
@@ -488,8 +489,48 @@ function dueBadge(n) {
 const tagPills = n => (n.tags || []).map(t => `<span class="pill" style="--tc:${tagInfo(t).color}">${esc(t)}</span>`).join("");
 const linkChips = n => (n.links || []).map(id => {
   const x = bookmark(id); if (!x) return "";
-  return `<a class="lnk" href="${esc(x.b.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.b.url)}">${fav(x.b.url, ICON.link)}<span>${esc(x.b.title)}</span></a>`;
+  return `<span class="lnk-wrap"><a class="lnk" href="${esc(x.b.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.b.url)}">${fav(x.b.url, ICON.link)}<span>${esc(x.b.title)}</span></a><button class="lnk-more" data-lnk="${id}" data-lnk-note="${n.id}" title="Link menu" draggable="false">${ICON.more}</button></span>`;
 }).join("");
+
+// the ⋯ on a note's link: open, edit, copy or take it off the note. Caught
+// before the board, card and preview handlers, which would open the note.
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); ta.remove();
+  }
+}
+document.addEventListener("click", e => {
+  const btn = e.target.closest?.(".lnk-more");
+  if (!btn) return;
+  e.preventDefault(); e.stopPropagation();
+  const n = note(btn.dataset.lnkNote), x = bookmark(btn.dataset.lnk);
+  if (!n || !x) return;
+  popMenu(btn, `
+    <button data-m="open">${ICON.link} Open</button>
+    <button data-m="edit">${ICON.edit} Edit…</button>
+    <button data-m="copy">${ICON.copy} Copy address</button>
+    <hr><button data-m="remove" class="danger">${ICON.x} Remove from note</button>`, d => {
+    hidePeek();
+    switch (d.m) {
+      case "open":
+        if (isLocal(x.b.url)) openLocal(x.b.url);
+        else window.open(x.b.url, "_blank", "noopener,noreferrer");
+        break;
+      case "edit": editBookmark(x.board, x.b.id); break;
+      case "copy": copyText(isLocal(x.b.url) ? pathOf(x.b.url) : x.b.url).then(() => toast("Address copied.")); break;
+      case "remove": {
+        const snapshot = JSON.stringify(ws);
+        n.links = (n.links || []).filter(id => id !== x.b.id); n.updated = nowSec();
+        save(); render();
+        offerUndo(`Removed “${esc(x.b.title)}” from “${esc(n.title || "note")}”. It's still in ${esc(x.board.name)}'s Links.`, snapshot);
+        break;
+      }
+    }
+  });
+}, true);
 
 function cardHtml(n) {
   return `<div class="card ${isDone(n) ? "is-done" : ""}" draggable="true" data-note="${n.id}">

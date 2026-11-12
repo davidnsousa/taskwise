@@ -183,7 +183,7 @@ function renderTags(main) {
   cols.push(laneHtml({ key: "none", title: "No tag", color: "var(--border-strong)", notes: untagged, drop: "Drop here to remove its tags", hint: "Every open note has a tag" }));
   if (ui.tags.done !== -1) {
     const done = shown.filter(isDone);
-    cols.push(laneHtml({ key: "done", title: "Done", color: "var(--ok)", notes: done, drop: "Drop here to mark it done (its other tags stay)",
+    cols.push(laneHtml({ key: "done", title: "Done", color: "var(--ok)", notes: done, drop: "Drop here to mark it done (urgent and waiting tags are removed)",
       foldKey: "tags:done", foldDefault: true, hint: "Nothing done yet" }));
   }
   keepScroll(main, () => {
@@ -195,7 +195,7 @@ function dropTags(n, lane, sub, e) {
   const to = lane.dataset.lane, from = drag.fromLane || "";
   if (to === from) return false;
   n.tags ||= [];
-  if (to === "done") { if (!isDone(n)) { ensureTags(["done"]); n.tags.push("done"); placeAtEnd(n); } return true; }
+  if (to === "done") { if (!isDone(n)) { markDone(n); placeAtEnd(n); } return true; }
   if (to === "none") { n.tags = n.tags.filter(x => x === "done" && from !== "done"); return true; }
   const name = to.slice(2);
   if (from === "done") n.tags = n.tags.filter(x => x !== "done");

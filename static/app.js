@@ -235,6 +235,12 @@ function folderDescendants(b, id) {
 }
 const bmCountIn = (b, id) => { const set = folderDescendants(b, id); return (b.bookmarks || []).filter(x => set.has(x.folderId)).length; };
 const isDone = n => (n.tags || []).includes("done");
+// marking a note done also drops the tags that only matter while it's open
+const OPEN_ONLY_TAGS = ["urgent", "waiting"];
+function markDone(n) {
+  n.tags = (n.tags || []).filter(t => !OPEN_ONLY_TAGS.includes(t));
+  if (!n.tags.includes("done")) { ensureTags(["done"]); n.tags.push("done"); }
+}
 const notesLinkedTo = bmId => ws.notes.filter(n => (n.links || []).includes(bmId));
 const asleep = b => !b || b.hibernated || group(b.groupId)?.hibernated;
 const hiddenB = b => !asleep(b) && (b.hidden || group(b.groupId)?.hidden);
@@ -276,6 +282,15 @@ function placeAtEnd(n) {
   ws.notes.forEach((x, j) => { if (x.boardId === n.boardId && (x.sectionId || null) === (n.sectionId || null)) at = j; });
   if (at < 0) ws.notes.forEach((x, j) => { if (x.boardId === n.boardId) at = j; });
   ws.notes.splice(at < 0 ? ws.notes.length : at + 1, 0, n);
+}
+
+// insert note n at the top of (board, section) in the global note order
+function placeAtStart(n) {
+  const i = ws.notes.indexOf(n);
+  if (i >= 0) ws.notes.splice(i, 1);
+  let at = ws.notes.findIndex(x => x.boardId === n.boardId && (x.sectionId || null) === (n.sectionId || null));
+  if (at < 0) at = ws.notes.findIndex(x => x.boardId === n.boardId);
+  ws.notes.splice(at < 0 ? ws.notes.length : at, 0, n);
 }
 
 // done notes live at the bottom of their section: within each (board, section)
@@ -539,7 +554,6 @@ function columnHtml(b) {
       <span class="dot"></span>
       <h2>${esc(b.name)}</h2>${flags}
       <span class="n">${shown.length === notes.length ? notes.length : `${shown.length}/${notes.length}`}</span>
-      <button class="ghost icon" data-act="quick" title="Add a note">${ICON.plus}</button>
       <button class="ghost icon" data-act="board-menu" title="Board menu">${ICON.more}</button>
     </div>
     <div class="bookmarks ${b.bookmarksOpen ? "open" : ""}">
@@ -559,16 +573,14 @@ function columnHtml(b) {
           <div class="sec-head" data-act="toggle-sec" draggable="true" title="${sec ? "" : "Notes that aren't in any other section · "}drag to move the section">
             <span class="arrow">${ICON.chevron}</span><span class="sec-name">${sec ? esc(sec.name) : "General"}</span>
             <span class="n">${list.length === total ? total : `${list.length}/${total}`}</span>
-            <button class="ghost icon" data-act="quick-sec" title="Add a note to this section">${ICON.plusSm}</button>
             ${sec ? `<button class="ghost icon" data-act="sec-menu" title="Section menu">${ICON.more}</button>` : ""}
           </div>
+          ${isQuick(id) ? quickHtml() : `<button class="sec-add" data-act="quick-sec" title="Add a note to this section">${ICON.plusSm}</button>`}
           <div class="notes" data-section="${sec ? sec.id : ""}">${list.map(cardHtml).join("")}</div>
-          ${isQuick(id) ? quickHtml() : ""}
         </div>`;
       }).join("")}
     </div>
     <div class="col-foot">
-      <button class="add-note" data-act="quick">${ICON.plusSm} Add a note</button>
       <button class="ghost add-sec" data-act="add-sec" title="Add a section to this board">${ICON.plusSm} Section</button>
     </div>
   </section>`;
@@ -583,7 +595,7 @@ function renderBoard(main) {
 
   if (!ws.boards.length) {
     main.innerHTML = `<div class="empty-board"><h2>No boards yet</h2>
-      <p>Boards are the columns, kept in <b>groups</b>. Add a board, then add notes with its <b>+</b> button and split it into
+      <p>Boards are the columns, kept in <b>groups</b>. Add a board, then add notes with the <b>+</b> bar inside each section and split it into
       <b>sections</b> if you like. Quick add understands <code>#tags</code> and a due at the end, e.g. <code>Send invoice #urgent !next week</code>.</p>
       <button class="primary" id="firstBoard">${ICON.plus} Create a board</button></div>`;
     $("#firstBoard").onclick = () => addBoard();
@@ -746,7 +758,6 @@ $("#main").addEventListener("click", e => {
   }
   if (e.target.closest("a")) return;   // links open normally
   switch (act) {
-    case "quick": quick = { board: b.id, section: null }; if (b.generalCollapsed) { b.generalCollapsed = false; save(); } renderMain(); return;
     case "quick-sec":
       e.stopPropagation();
       if (sec) { quick = { board: b.id, section: sec.id }; sec.collapsed = false; }
@@ -807,19 +818,18 @@ function quickAdd(ta) {
   const q = parseQuick(text);
   ensureTags(q.tags);
   const n = { id: uid(), boardId: quick.board, sectionId: quick.section, title: q.title, body: q.body, tags: q.tags, due: q.due, links: [], created: nowSec(), updated: nowSec() };
-  placeAtEnd(n);
+  placeAtStart(n);
   ta.value = "";
+  quick = null;
   save();
   render();
-  const body = $(`.column[data-board="${n.boardId}"] .quick`);
-  body?.scrollIntoView({ block: "nearest" });
   if (!matches(n)) toast("Added — but hidden by the current filters.");
 }
 
 function toggleDone(n) {
   n.tags ||= [];
   if (isDone(n)) n.tags = n.tags.filter(t => t !== "done");
-  else { ensureTags(["done"]); n.tags.push("done"); }
+  else markDone(n);
   n.updated = nowSec();
   placeAtEnd(n);   // done: last of the section; reopened: last of the open ones (save sorts them)
   save(); render();
@@ -1699,7 +1709,9 @@ function openNote(n) {
   $("#nTags", o).addEventListener("click", e => {
     const t = e.target.closest("[data-tag]")?.dataset.tag; if (!t) return;
     n.tags ||= [];
-    n.tags = n.tags.includes(t) ? n.tags.filter(x => x !== t) : [...n.tags, t];
+    if (n.tags.includes(t)) n.tags = n.tags.filter(x => x !== t);
+    else if (t === "done") markDone(n);
+    else n.tags = [...n.tags, t];
     touch(); renderTags();
   });
   $("#nTags", o).addEventListener("keydown", e => {

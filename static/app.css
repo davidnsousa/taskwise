@@ -223,7 +223,7 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
 .flag { color: var(--faint); display: inline-flex; }
 .column.collapsed { width: 46px; cursor: pointer; min-height: 160px; }
 .column.collapsed .col-head { flex-direction: column; padding: 12px 4px; gap: 10px; cursor: pointer; }
-.column.collapsed .col-head .grip, .column.collapsed .col-head [data-act="quick"] { display: none; }
+.column.collapsed .col-head .grip { display: none; }
 .column.collapsed .col-head h2 { writing-mode: vertical-rl; white-space: nowrap; overflow: visible; }
 .column.collapsed > :not(.col-head) { display: none; }
 
@@ -272,7 +272,7 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
   background: color-mix(in srgb, var(--pc) 3%, transparent);
 }
 .section .notes { padding: 2px 7px 8px; }
-.section .quick { margin: 0 7px 8px; }
+.section .quick { margin: 0 7px 6px; }
 .section.drag-over-col { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
 .sec-head {
   display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 5px 0 9px; cursor: pointer; user-select: none; border-radius: 10px;
@@ -351,6 +351,12 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
   flex: 1; background: none; border: none; color: var(--muted); justify-content: flex-start; padding: 0 8px; border-radius: 8px; box-shadow: none;
 }
 .add-note:hover { background: var(--hover); color: var(--text); }
+.sec-add, :root[data-theme="light"] .sec-add {
+  display: flex; width: calc(100% - 14px); margin: 0 7px 6px; height: 26px; justify-content: center; align-items: center; padding: 0;
+  background: none; border: 1px dashed color-mix(in srgb, var(--pc) 30%, var(--border)); border-radius: 8px; color: var(--faint); box-shadow: none;
+}
+.sec-add:hover { background: var(--hover); color: var(--text); border-color: color-mix(in srgb, var(--pc) 55%, var(--border)); }
+.section.collapsed .sec-add { display: none; }
 .add-sec { font-size: calc(12px * var(--ui-scale)); color: var(--faint); }
 .quick { margin: 4px 8px 8px; display: flex; flex-direction: column; gap: 7px; }
 .quick textarea { resize: none; min-height: 68px; background: var(--card) !important; box-shadow: var(--shadow-sm); line-height: 1.5; border-radius: 10px; }

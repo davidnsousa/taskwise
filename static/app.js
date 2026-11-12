@@ -472,7 +472,6 @@ async function pickPaths(kind, multiple) {
 function render() { renderFilters(); renderSidebar(); renderMain(); }
 
 function renderMain() {
-  hidePeek();
   const main = $("#main");
   main.classList.toggle("table-mode", ui.view === "table");
   main.dataset.view = ui.view;
@@ -508,12 +507,12 @@ document.addEventListener("click", e => {
   e.preventDefault(); e.stopPropagation();
   const n = note(btn.dataset.lnkNote), x = bookmark(btn.dataset.lnk);
   if (!n || !x) return;
+  const inView = !!btn.closest(".note-view");
   popMenu(btn, `
     <button data-m="open">${ICON.link} Open</button>
     <button data-m="edit">${ICON.edit} Edit…</button>
     <button data-m="copy">${ICON.copy} Copy address</button>
     <hr><button data-m="remove" class="danger">${ICON.x} Remove from note</button>`, d => {
-    hidePeek();
     switch (d.m) {
       case "open":
         if (isLocal(x.b.url)) openLocal(x.b.url);
@@ -525,6 +524,7 @@ document.addEventListener("click", e => {
         const snapshot = JSON.stringify(ws);
         n.links = (n.links || []).filter(id => id !== x.b.id); n.updated = nowSec();
         save(); render();
+        if (inView) viewNote(n);
         offerUndo(`Removed “${esc(x.b.title)}” from “${esc(n.title || "note")}”. It's still in ${esc(x.board.name)}'s Links.`, snapshot);
         break;
       }
@@ -828,8 +828,8 @@ $("#main").addEventListener("click", e => {
     case "edit-bm": editBookmark(b, e.target.closest("li").dataset.bm); return;
     case "filter-bm": { const id = e.target.closest("li").dataset.bm; ui.bookmark = ui.bookmark === id ? null : id; render(); return; }
   }
-  if (card) { openNote(note(card.dataset.note)); return; }
-  if (row) { openNote(note(row.dataset.note)); return; }
+  if (card) { viewNote(note(card.dataset.note)); return; }
+  if (row) { viewNote(note(row.dataset.note)); return; }
   // a collapsed board or group opens with a click anywhere on its strip
   if (col?.classList.contains("collapsed") && !act) { b.collapsed = false; save(); renderMain(); return; }
   if (grpEl?.classList.contains("collapsed") && !act) { g.collapsed = false; save(); render(); return; }
@@ -885,91 +885,6 @@ function toggleDone(n) {
   placeAtEnd(n);   // done: last of the section; reopened: last of the open ones (save sorts them)
   save(); render();
 }
-
-// ---------- hover preview ----------
-// Resting the pointer on a card or table row opens the whole note over it -
-// full text, all tags, due and links - without moving anything else. Board
-// cards whose text already fits don't need it, except done ones, which are
-// dimmed on the board; table rows always do.
-
-let peekTimer = null, peekHideTimer = null, peekEl = null, peekFor = null;
-
-function hidePeek() {
-  clearTimeout(peekTimer); clearTimeout(peekHideTimer);
-  peekTimer = peekHideTimer = null;
-  peekEl?.remove();
-  peekEl = peekFor = null;
-}
-
-function needsPeek(anchor, n) {
-  if (isDone(n)) return true;
-  if (anchor.matches("tr.row, .crow")) return !!(n.body || "").trim() || (n.links || []).length > 1 || (n.tags || []).length > 2;
-  const body = $(".body", anchor);
-  return !!body && body.scrollHeight > body.clientHeight + 2;
-}
-
-function showPeek(anchor, n) {
-  hidePeek();
-  if (!anchor.isConnected) return;
-  const r = anchor.getBoundingClientRect();
-  const inTable = anchor.matches("tr.row, .crow");
-  const b = boardOf(n), sec = section(b, n.sectionId);
-  const el = document.createElement("div");
-  el.className = "peek";
-  el.innerHTML = `<div class="card peek-card ${isDone(n) ? "is-done" : ""}">
-    <button class="check" data-peek="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
-    <div class="peek-where"><span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "")} › ${esc(sec ? sec.name : "General")}</div>
-    <div class="title">${esc(n.title || "(untitled)")}</div>
-    ${n.body ? `<div class="body">${esc(n.body)}</div>` : ""}
-    <div class="meta">${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
-    <div class="peek-hint">Click to edit</div>
-  </div>`;
-  document.body.appendChild(el);
-  // over the card, same width (wider for a table row), kept inside the window
-  const width = inTable ? Math.min(560, innerWidth - 24) : Math.max(r.width, 300);
-  const left = inTable ? Math.max(12, Math.min(($("td.t, .t", anchor) || anchor).getBoundingClientRect().left - 12, innerWidth - width - 12))
-                       : Math.max(12, Math.min(r.left, innerWidth - width - 12));
-  el.style.width = `${width}px`;
-  el.style.left = `${left}px`;
-  el.style.top = `${Math.max(12, Math.min(r.top - 1, innerHeight - el.offsetHeight - 12))}px`;
-  peekEl = el; peekFor = anchor;
-  el.addEventListener("mouseleave", e => { if (!anchor.contains(e.relatedTarget)) scheduleHidePeek(); });
-  el.addEventListener("mouseenter", () => clearTimeout(peekHideTimer));
-  el.addEventListener("click", e => {
-    if (e.target.closest("[data-peek=done]")) { hidePeek(); toggleDone(n); return; }
-    if (e.target.closest("a")) return;   // links open as usual (local files via the server)
-    hidePeek();
-    openNote(n);
-  });
-}
-
-function scheduleHidePeek() {
-  clearTimeout(peekTimer);
-  clearTimeout(peekHideTimer);
-  peekHideTimer = setTimeout(hidePeek, 120);
-}
-
-$("#main").addEventListener("mouseover", e => {
-  const anchor = e.target.closest(".card, tr.row, .crow");
-  if (!anchor) return;
-  if (anchor === peekFor) { clearTimeout(peekHideTimer); return; }
-  if (drag || colDrag?.started || $(".overlay") || $(".menu")) return;
-  clearTimeout(peekTimer);
-  peekTimer = setTimeout(() => {
-    const n = note(anchor.dataset.note);
-    if (n && anchor.matches(":hover") && !drag && needsPeek(anchor, n)) showPeek(anchor, n);
-  }, 380);
-});
-$("#main").addEventListener("mouseout", e => {
-  const anchor = e.target.closest(".card, tr.row, .crow");
-  if (!anchor || anchor.contains(e.relatedTarget)) return;
-  if (peekEl && peekEl.contains(e.relatedTarget)) return;
-  clearTimeout(peekTimer);
-  if (peekFor === anchor) scheduleHidePeek();
-});
-document.addEventListener("scroll", e => { if (peekEl && !peekEl.contains(e.target)) hidePeek(); }, true);
-document.addEventListener("dragstart", hidePeek, true);
-document.addEventListener("keydown", e => { if (e.key === "Escape" && peekEl) hidePeek(); });
 
 // ---------- drag & drop: notes and bookmarks (HTML drag & drop) ----------
 
@@ -1726,6 +1641,31 @@ function editBookmark(b, id, folderId = null) {
 // outside just closes.
 
 const DUE_CHIPS = ["today", "tomorrow", "this week", "next week", "2 weeks", "this month", "next month"];
+
+// a note opened from the board or a view: read it whole, with Edit to change it
+function viewNote(n) {
+  if (!n) return;
+  const b = boardOf(n), sec = section(b, n.sectionId);
+  const due = n.due?.target ? `${dueBadge(n)}<span class="hint">${esc(Due.describe(n.due))}</span>` : "";
+  const links = linkChips(n);
+  const o = modal(`
+    <div class="nv-where"><span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "")} › ${esc(sec ? sec.name : "General")}</div>
+    <h3 class="nv-title ${isDone(n) ? "is-done" : ""}">${esc(n.title || "(untitled)")}</h3>
+    ${(n.body || "").trim() ? `<div class="nv-body">${esc(n.body)}</div>` : `<div class="nv-body empty">No details.</div>`}
+    ${(n.tags || []).length || due ? `<div class="nv-meta">${due}${tagPills(n)}</div>` : ""}
+    ${links ? `<div class="section-f"><span class="lbl">Links</span><div class="nv-links">${links}</div></div>` : ""}
+    <div class="foot">
+      <button class="ghost" id="vDone">${ICON.check} ${isDone(n) ? "Not done" : "Mark done"}</button>
+      <span class="hint">created ${ago(n.created)}${n.updated && n.updated !== n.created ? ` · edited ${ago(n.updated)}` : ""}</span>
+      <div class="spacer"></div><button class="ghost" id="vClose">Close</button><button class="primary" id="vEdit" title="Edit (E)">${ICON.edit} Edit</button></div>`, "note-view");
+  $("#vClose", o).onclick = closeModal;
+  $("#vEdit", o).onclick = () => openNote(n);
+  $("#vDone", o).onclick = () => { toggleDone(n); viewNote(n); };
+  o.addEventListener("keydown", e => {
+    if (e.key.toLowerCase() === "e" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.matches("input, textarea, select")) { e.preventDefault(); openNote(n); }
+  });
+  o.tabIndex = -1; o.focus();
+}
 
 function openNote(n) {
   if (!n) return;

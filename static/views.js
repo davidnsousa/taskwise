@@ -386,7 +386,7 @@ $("#main").addEventListener("click", e => {
   const fold = e.target.closest("[data-fold]");
   if (fold) { toggleFold(fold.dataset.fold, fold.dataset.foldDefault === "1"); renderMain(); return; }
   const row = e.target.closest(".crow");
-  if (row) { hidePeek(); openNote(note(row.dataset.note)); }
+  if (row) viewNote(note(row.dataset.note));
 });
 $("#main").addEventListener("change", e => {
   const k = e.target.dataset?.vopt;

@@ -18,7 +18,7 @@
 :root {
   --ui-scale: 1;  /* Settings -> Text size; every font size is multiplied by it */
   color-scheme: dark;
-  --bg: #0c0d10; --surface: #121418; --col: #15171c; --card: #1b1e24; --card-hover: #1f232a; --peek: #272f3f; --raised: #191c22;
+  --bg: #0c0d10; --surface: #121418; --col: #15171c; --card: #1b1e24; --card-hover: #1f232a; --raised: #191c22;
   --border: rgba(255,255,255,0.075); --border-strong: rgba(255,255,255,0.13); --line: rgba(255,255,255,0.055);
   --text: #eceef1; --muted: #9aa1ad; --faint: #646b77;
   --accent: #6ea8ff; --accent-strong: #3d7cf2; --accent-bg: rgba(110,168,255,0.12); --on-accent: #ffffff;
@@ -33,7 +33,7 @@
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f5f6f8; --surface: #ffffff; --col: #eef0f3; --card: #ffffff; --card-hover: #ffffff; --peek: #e8f0fe; --raised: #fafbfc;
+  --bg: #f5f6f8; --surface: #ffffff; --col: #eef0f3; --card: #ffffff; --card-hover: #ffffff; --raised: #fafbfc;
   --border: rgba(15,23,42,0.09); --border-strong: rgba(15,23,42,0.16); --line: rgba(15,23,42,0.07);
   --text: #15181e; --muted: #5b6270; --faint: #8b919c;
   --accent: #2563eb; --accent-strong: #2563eb; --accent-bg: rgba(37,99,235,0.08); --on-accent: #ffffff;
@@ -573,22 +573,6 @@ body.app-offline #offline { display: flex; }
 .bm-list li.bm-empty { font-style: italic; min-height: 26px; }
 
 /* ---------- hover preview ---------- */
-.peek { position: fixed; z-index: 45; animation: peek 0.14s cubic-bezier(.2,.8,.3,1); }
-@keyframes peek { from { opacity: 0; transform: translateY(2px) scale(0.99); } }
-.peek .card, .peek .card:hover {
-  transform: none; cursor: pointer; border-color: var(--border-strong); background: var(--peek);
-  box-shadow: var(--highlight), var(--shadow-lg);
-}
-.peek .card.is-done .body, .peek .card.is-done .meta { opacity: 1; }
-.peek .card .body { display: block; -webkit-line-clamp: unset; overflow: auto; max-height: 52vh; }
-.peek .card .check { opacity: 1; }
-.peek .card .meta { margin-top: 12px; }
-.peek .lnk { max-width: 260px; }
-.peek-where {
-  display: flex; align-items: center; gap: 6px; font-size: calc(11.5px * var(--ui-scale)); color: var(--faint); margin: -1px 26px 4px 0; font-weight: 500;
-}
-.peek-where .dot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
-.peek-hint { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); font-size: calc(11px * var(--ui-scale)); color: var(--faint); }
 
 /* ---------- more views (views.js) ---------- */
 .seg { flex-wrap: nowrap; }
@@ -729,3 +713,16 @@ body.app-offline #offline { display: flex; }
 .bmv-board.drag-over-col { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
 .bmv-body { padding-left: 14px; }
 .bmv-empty { margin-left: calc(var(--d, 0) * 18px); padding: 6px 10px; color: var(--faint); font-size: calc(12px * var(--ui-scale)); }
+
+/* a note opened to read; Edit switches to the editor */
+.modal.note-view { gap: 14px; }
+.nv-where { display: flex; align-items: center; gap: 7px; font-size: calc(12px * var(--ui-scale)); color: var(--faint); font-weight: 500; }
+.nv-where .dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+.modal h3.nv-title { font-size: calc(20px * var(--ui-scale)); line-height: 1.3; word-break: break-word; margin-top: -4px; }
+.nv-title.is-done { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
+.nv-body { white-space: pre-wrap; word-break: break-word; line-height: 1.6; font-size: calc(14px * var(--ui-scale)); max-height: 55vh; overflow: auto; }
+.nv-body.empty { color: var(--faint); font-style: italic; }
+.nv-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.nv-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.nv-links .lnk-wrap { max-width: 320px; }
+.nv-links .lnk-more { opacity: 1; }

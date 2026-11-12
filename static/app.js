@@ -79,7 +79,7 @@ async function loadBoard() {
   if (merged) changed = true;
   if (sinkDone()) changed = true;
   render();
-  if (merged) toast(`Merged ${merged} duplicate bookmark${merged === 1 ? "" : "s"} — notes that linked them now share one.`, 7000);
+  if (merged) toast(`Merged ${merged} duplicate link${merged === 1 ? "" : "s"} — notes that linked them now share one.`, 7000);
   if (changed) save();
 }
 
@@ -195,7 +195,7 @@ function addBookmarks(b, items, folderId = null) {
   }
   return skipped;
 }
-const skippedMsg = n => (n ? ` ${n} already bookmarked, not added again.` : "");
+const skippedMsg = n => (n ? ` ${n} already in Links, not added again.` : "");
 
 // merge bookmarks that point to the same address (made before taskwise checked
 // for that): keep the first, point every note's link at it. Returns true if
@@ -534,8 +534,10 @@ function orderedSections(b) {
   return list;
 }   // { board, section } where the quick-add box is open
 
-function quickHtml() {
+function quickHtml(b) {
+  const opts = orderedSections(b).map(x => `<option value="${x ? x.id : ""}" ${(x ? x.id : null) === (quick.section || null) ? "selected" : ""}>${x ? esc(x.name) : "General"}</option>`).join("");
   return `<div class="quick">
+    <label class="quick-sec">Section <select data-act="quick-pick">${opts}</select></label>
     <textarea placeholder="Note… (#tag, !next week)  Enter adds · Shift+Enter new line · Esc closes"></textarea>
     <div class="row"><button class="primary" data-act="quick-add">Add note</button><button class="ghost" data-act="quick-close">Cancel</button>
     <span class="hint">#tag · !due</span></div></div>`;
@@ -546,7 +548,6 @@ function columnHtml(b) {
   const shown = notes.filter(matches);
   const bms = b.bookmarks || [];
   const listFor = secId => shown.filter(n => (n.sectionId || null) === secId);
-  const isQuick = secId => quick && quick.board === b.id && quick.section === secId;
   const flags = `${b.hidden ? `<span class="flag" title="hidden">${ICON.eyeOff}</span>` : ""}`;
   return `<section class="column ${b.collapsed ? "collapsed" : ""}" data-board="${b.id}" style="--pc:${b.color || "var(--border)"}">
     <div class="col-head" title="drag to move the board · double-click the name to rename">
@@ -557,10 +558,11 @@ function columnHtml(b) {
       <button class="ghost icon" data-act="board-menu" title="Board menu">${ICON.more}</button>
     </div>
     <div class="bookmarks ${b.bookmarksOpen ? "open" : ""}">
-      <div class="bm-head" data-act="toggle-bm"><span class="arrow">${ICON.chevron}</span><span class="t">Bookmarks</span>${bms.length ? `<span class="n">${bms.length}</span>` : ""}
-        <button class="ghost icon" data-act="add-bm" title="Add a bookmark">${ICON.plusSm}</button></div>
+      <div class="bm-head" data-act="toggle-bm"><span class="arrow">${ICON.chevron}</span><span class="t">Links</span>${bms.length ? `<span class="n">${bms.length}</span>` : ""}
+        <button class="ghost icon" data-act="add-bm" title="Add a link">${ICON.plusSm}</button></div>
       <ul class="bm-list">${bms.length || bmFolders(b).length ? bmTree(b, null, 0) : `<li class="bm-empty">No links yet — add one with +</li>`}</ul>
     </div>
+    ${quick && quick.board === b.id ? quickHtml(b) : `<button class="board-add" data-act="board-add" title="Add a note or a section">${ICON.plusSm}</button>`}
     <div class="col-body">
       ${orderedSections(b).map(sec => {
         // General = notes outside any other section; it has a place in the
@@ -575,13 +577,9 @@ function columnHtml(b) {
             <span class="n">${list.length === total ? total : `${list.length}/${total}`}</span>
             ${sec ? `<button class="ghost icon" data-act="sec-menu" title="Section menu">${ICON.more}</button>` : ""}
           </div>
-          ${isQuick(id) ? quickHtml() : `<button class="sec-add" data-act="quick-sec" title="Add a note to this section">${ICON.plusSm}</button>`}
           <div class="notes" data-section="${sec ? sec.id : ""}">${list.map(cardHtml).join("")}</div>
         </div>`;
       }).join("")}
-    </div>
-    <div class="col-foot">
-      <button class="ghost add-sec" data-act="add-sec" title="Add a section to this board">${ICON.plusSm} Section</button>
     </div>
   </section>`;
 }
@@ -758,11 +756,16 @@ $("#main").addEventListener("click", e => {
   }
   if (e.target.closest("a")) return;   // links open normally
   switch (act) {
-    case "quick-sec":
+    case "board-add":
       e.stopPropagation();
-      if (sec) { quick = { board: b.id, section: sec.id }; sec.collapsed = false; }
-      else { quick = { board: b.id, section: null }; b.generalCollapsed = false; }   // the General section
-      renderMain(); return;
+      popMenu(e.target.closest("button"), `
+        <button data-m="note">${ICON.plusSm} Note</button>
+        <button data-m="sec">${ICON.plusSm} Section</button>`, d => {
+        if (d.m === "note") { quick = { board: b.id, section: null }; renderMain(); }
+        if (d.m === "sec") addSection(b);
+      });
+      return;
+    case "quick-pick": return;
     case "quick-close": quick = null; renderMain(); return;
     case "quick-add": quickAdd($(".quick textarea", col)); return;
     case "board-menu": boardMenu(b, e.target.closest("button")); return;
@@ -806,6 +809,9 @@ $("#main").addEventListener("dblclick", e => {
   const sn = e.target.closest(".sec-name");
   if (sn && !sn.closest(".section.general")) { const b = boardById(sn.closest(".column").dataset.board); renameInline(sn, section(b, sn.closest(".section").dataset.section)); }
 });
+$("#main").addEventListener("change", e => {
+  if (e.target.matches(".quick select") && quick) quick.section = e.target.value || null;
+});
 $("#main").addEventListener("keydown", e => {
   if (!e.target.matches(".quick textarea")) return;
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); quickAdd(e.target); }
@@ -815,6 +821,10 @@ $("#main").addEventListener("keydown", e => {
 function quickAdd(ta) {
   const text = ta.value.trim();
   if (!text || !quick) { ta.focus(); return; }
+  const pick = ta.closest(".quick")?.querySelector("select");
+  if (pick) quick.section = pick.value || null;
+  const target = section(boardById(quick.board), quick.section);
+  if (target) target.collapsed = false; else if (!quick.section) boardById(quick.board).generalCollapsed = false;
   const q = parseQuick(text);
   ensureTags(q.tags);
   const n = { id: uid(), boardId: quick.board, sectionId: quick.section, title: q.title, body: q.body, tags: q.tags, due: q.due, links: [], created: nowSec(), updated: nowSec() };
@@ -933,7 +943,7 @@ $("#main").addEventListener("dragstart", e => {
   else if (card) { drag = { kind: "note", id: card.dataset.note }; card.classList.add("dragging"); }
   else if (li) { drag = { kind: "bm", id: li.dataset.bm, from: li.closest(".column").dataset.board }; li.classList.add("dragging"); }
   else return;
-  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.effectAllowed = drag.kind === "bm" ? "linkMove" : "move";
   e.dataTransfer.setData("text/plain", drag.id);
 });
 $("#main").addEventListener("dragend", () => { drag = null; clearDropMarks(); $$(".dragging").forEach(x => x.classList.remove("dragging")); });
@@ -943,7 +953,10 @@ function clearDropMarks() {
   $$(".drag-over-col").forEach(x => x.classList.remove("drag-over-col"));
   $$(".bm-drop-before").forEach(x => x.classList.remove("bm-drop-before"));
   $$(".bm-drop-into").forEach(x => x.classList.remove("bm-drop-into"));
+  $$(".link-drop").forEach(x => x.classList.remove("link-drop"));
 }
+// a link dragged from a board's Links onto a note card (on any board) links it there
+const linkDropCard = e => (drag?.kind === "bm" ? e.target.closest?.(".card[data-note]") : null);
 function cardAfter(container, y) {
   // the first card whose middle is below the pointer: drop goes before it
   return [...container.querySelectorAll(":scope > .card:not(.dragging)")].find(c => { const r = c.getBoundingClientRect(); return y < r.top + r.height / 2; }) || null;
@@ -993,6 +1006,8 @@ document.addEventListener("dragover", e => {
 });
 $("#main").addEventListener("dragover", e => {
   if (!drag) return;
+  const lc = linkDropCard(e);
+  if (lc) { e.preventDefault(); e.dataTransfer.dropEffect = "link"; clearDropMarks(); lc.classList.add("link-drop"); return; }
   const col = dropCol(e);
   if (!col) return;
   if (drag.kind === "sec" && drag.id === "" && col.dataset.board !== drag.from) { clearDropMarks(); return; }   // General stays on its board
@@ -1023,6 +1038,19 @@ $("#main").addEventListener("dragover", e => {
 });
 $("#main").addEventListener("drop", e => {
   if (!drag) return;
+  const lc = linkDropCard(e);
+  if (lc) {
+    e.preventDefault();
+    const n = note(lc.dataset.note), x = bookmark(drag.id);
+    drag = null; clearDropMarks();
+    if (!n || !x) return;
+    n.links ||= [];
+    if (n.links.includes(x.b.id)) { toast(`“${esc(n.title || "This note")}” already links “${esc(x.b.title)}”.`); return; }
+    n.links.push(x.b.id); n.updated = nowSec();
+    save(); render();
+    toast(`Linked “${esc(x.b.title)}” to “${esc(n.title || "note")}”.`);
+    return;
+  }
   const col = dropCol(e);
   if (!col) return;
   e.preventDefault();
@@ -1297,8 +1325,8 @@ function boardMenu(b, anchor) {
   popMenu(anchor, `
     <button data-m="rename">${ICON.edit} Rename</button>
     <button data-m="add-sec">${ICON.plusSm} Add section</button>
-    <button data-m="add-bm">${ICON.bookmark} Add bookmark</button>
-    <button data-m="add-bmf">${ICON.folder} New bookmark folder</button>
+    <button data-m="add-bm">${ICON.bookmark} Add link</button>
+    <button data-m="add-bmf">${ICON.folder} New link folder</button>
     <button data-m="only">${ICON.eye} Show only this board</button>
     <hr>${stateItems(b)}
     ${others.length ? `<hr><div class="menu-label">Move to group</div>${others.map(g => `<button data-move="${g.id}"><span class="gdot" style="background:${g.color}"></span>${esc(g.name)}</button>`).join("")}` : ""}
@@ -1376,7 +1404,7 @@ function dropBoardData(b) {
 }
 function deleteBoard(b) {
   const count = ws.notes.filter(n => n.boardId === b.id).length;
-  confirmBox(`Delete the board “${esc(b.name)}”?`, `This removes the board, its ${(b.bookmarks || []).length} bookmark(s) and its ${count} note(s). You can undo right after.`, "Delete", () => {
+  confirmBox(`Delete the board “${esc(b.name)}”?`, `This removes the board, its ${(b.bookmarks || []).length} link(s) and its ${count} note(s). You can undo right after.`, "Delete", () => {
     const snapshot = JSON.stringify(ws);
     dropBoardData(b);
     save(); render();
@@ -1435,7 +1463,7 @@ function confirmBox(title, text, okLabel, onOk) {
 
 function addBmMenu(b, folderId, anchor) {
   popMenu(anchor, `
-    <button data-m="bm">${ICON.bookmark} Bookmark…</button>
+    <button data-m="bm">${ICON.bookmark} Link…</button>
     <button data-m="files">${ICON.file} Local files…</button>
     <button data-m="folder">${ICON.folder} New folder</button>`, d => {
     if (d.m === "bm") editBookmark(b, null, folderId);
@@ -1445,7 +1473,7 @@ function addBmMenu(b, folderId, anchor) {
       const skipped = addBookmarks(b, items, folderId);
       openBmPath(b, folderId);
       save(); render();
-      if (skipped) toast(skipped === items.length ? "Already bookmarked." : skippedMsg(skipped).trim());
+      if (skipped) toast(skipped === items.length ? "Already in Links." : skippedMsg(skipped).trim());
     });
   });
 }
@@ -1477,7 +1505,7 @@ function newBmFolder(b, parentId) {
 function folderMenu(b, f, anchor) {
   popMenu(anchor, `
     <button data-m="rename">${ICON.edit} Rename</button>
-    <button data-m="bm">${ICON.bookmark} Add bookmark here</button>
+    <button data-m="bm">${ICON.bookmark} Add link here</button>
     <button data-m="sub">${ICON.folder} New subfolder</button>
     <button data-m="fold">${f.collapsed ? ICON.unfold : ICON.fold} ${f.collapsed ? "Expand" : "Collapse"}</button>
     <hr><button data-m="delete" class="danger">Delete folder…</button>`, d => {
@@ -1495,9 +1523,9 @@ function deleteBmFolder(b, f) {
   const inside = folderDescendants(b, f.id);
   const count = (b.bookmarks || []).filter(x => inside.has(x.folderId)).length;
   const o = modal(`<h3>Delete the folder “${esc(f.name)}”?</h3>
-    <div class="muted">${count ? `It holds ${count} bookmark${count === 1 ? "" : "s"}${inside.size > 1 ? `, in ${inside.size - 1} subfolder${inside.size === 2 ? "" : "s"} too` : ""}.` : "It's empty."} You can undo right after.</div>
+    <div class="muted">${count ? `It holds ${count} link${count === 1 ? "" : "s"}${inside.size > 1 ? `, in ${inside.size - 1} subfolder${inside.size === 2 ? "" : "s"} too` : ""}.` : "It's empty."} You can undo right after.</div>
     <div class="foot"><div class="spacer"></div><button data-x="no">Cancel</button>
-      ${count ? `<button data-x="keep">Keep the bookmarks</button><button class="danger" data-x="all">Delete with its bookmarks</button>` : `<button class="danger" data-x="keep">Delete</button>`}</div>`, "small");
+      ${count ? `<button data-x="keep">Keep the links</button><button class="danger" data-x="all">Delete with its links</button>` : `<button class="danger" data-x="keep">Delete</button>`}</div>`, "small");
   o.onclick = e => {
     const a = e.target.closest("[data-x]")?.dataset.x;
     if (!a) return;
@@ -1588,7 +1616,7 @@ function editBookmark(b, id, folderId = null) {
     return `<option value="">— top level</option>` + rows.join("");
   };
   const linked = x ? notesLinkedTo(x.id) : [];
-  const o = modal(`<h3>${x ? "Edit bookmark" : `New bookmark in ${esc(b.name)}`}</h3>
+  const o = modal(`<h3>${x ? "Edit link" : `New link in ${esc(b.name)}`}</h3>
     <label class="f">Link<input type="text" id="bmUrl" placeholder="https://…  or a path: /home/…, ~/…" value="${esc(x?.url ? (isLocal(x.url) ? pathOf(x.url) : x.url) : "")}"></label>
     <div class="row pick-row"><span class="hint">or a local</span>
       <button data-x="pick-file">${ICON.file} File${x ? "" : "s"}…</button><button data-x="pick-folder">${ICON.folder} Folder…</button></div>
@@ -1609,7 +1637,7 @@ function editBookmark(b, id, folderId = null) {
       urlIn.style.borderColor = "var(--danger)";
       let err = $(".bm-dup", o);
       if (!err) { err = document.createElement("div"); err.className = "bm-dup due-preview bad"; urlIn.closest("label").after(err); }
-      err.innerHTML = `Already bookmarked as “${esc(dup.b.title)}” in ${bmWhere(dup)} — link that one from your notes.`;
+      err.innerHTML = `Already in Links as “${esc(dup.b.title)}” in ${bmWhere(dup)} — link that one from your notes.`;
       urlIn.focus();
       return;
     }
@@ -1647,7 +1675,7 @@ function editBookmark(b, id, folderId = null) {
       ws.notes.forEach(n => { n.links = (n.links || []).filter(l => l !== x.id); });
       if (ui.bookmark === x.id) ui.bookmark = null;
       save(); render();
-      offerUndo(`Deleted bookmark “${esc(x.title)}”.`, snapshot);
+      offerUndo(`Deleted link “${esc(x.title)}”.`, snapshot);
     }
   };
 }
@@ -1676,11 +1704,11 @@ function openNote(n) {
       <div class="due-row"><input type="text" id="nDue" placeholder="no due" value="${esc(n.due?.text || "")}"><span class="due-preview" id="nDuePrev"></span></div>
       <div class="due-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}<button data-due="before ">before day…</button><button data-due="">clear</button></div>
     </div>
-    <div class="section-f"><span class="lbl">Links <span class="hint">— bookmarks this note is about</span></span>
-      <input type="search" id="nLinkFilter" placeholder="filter bookmarks…" style="display:none">
+    <div class="section-f"><span class="lbl">Links <span class="hint">— from any board's Links, or drag one onto the note</span></span>
+      <input type="search" id="nLinkFilter" placeholder="filter links…" style="display:none">
       <div class="link-pick" id="nLinks"></div>
       <div class="row"><input type="text" id="nNewUrl" placeholder="add a new link: https://… or a path" style="flex:1.4"><input type="text" id="nNewName" placeholder="name (optional)" style="flex:1"><button id="nAddUrl">Add & link</button>
-        <button id="nAddFile" title="Choose local files to add to this board's bookmarks and link here">${ICON.file} Files…</button><button id="nAddFolder" title="Choose a local folder">${ICON.folder}</button></div>
+        <button id="nAddFile" title="Choose local files to add to this board's Links and link here">${ICON.file} Files…</button><button id="nAddFolder" title="Choose a local folder">${ICON.folder}</button></div>
     </div>
     <div class="foot"><button class="danger" id="nDelete">Delete note</button>
       <span class="hint">created ${ago(n.created)}${n.updated && n.updated !== n.created ? ` · edited ${ago(n.updated)}` : ""}</span>
@@ -1771,7 +1799,7 @@ function openNote(n) {
       const fp = folderPath(b, x.folderId).join(" › ");
       html += `<label><input type="checkbox" data-bm="${x.id}" ${(n.links || []).includes(x.id) ? "checked" : ""}>${fav(x.url)}${esc(x.title)} <span class="u">${fp ? `${esc(fp)} · ` : ""}${esc(hostOf(x.url))}</span></label>`;
     }
-    $("#nLinks", o).innerHTML = html || `<div class="none">${allBms().length ? "no match" : "No bookmarks yet — add a link below, or with + in a board's Bookmarks."}</div>`;
+    $("#nLinks", o).innerHTML = html || `<div class="none">${allBms().length ? "no match" : "No links yet — add one below, or with + in a board's Links."}</div>`;
   };
   renderLinks();
   linkFilter.oninput = renderLinks;
@@ -1796,7 +1824,7 @@ function openNote(n) {
     $("#nNewName", o).value = "";
     $("#nNewUrl", o).focus();
     touch(); renderLinks();
-    if (dup) toast(`Already a bookmark (“${esc(x.title)}” in ${bmWhere(dup)}) — linked it.`);
+    if (dup) toast(`Already in Links (“${esc(x.title)}” in ${bmWhere(dup)}) — linked it.`);
   };
   $("#nAddUrl", o).onclick = addUrl;
   const addPicked = async kind => {

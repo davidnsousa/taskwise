@@ -321,14 +321,14 @@ function renderBookmarks(main) {
         <span class="hint">${esc(group(b.groupId)?.name || "")}</span>${hiddenB(b) ? `<span class="flag" title="hidden board">${ICON.eyeOff}</span>` : ""}
         <span class="n">${(b.bookmarks || []).length}</span>
         ${showEmpty ? `<button class="ghost bmv-new-folder" data-vact="new-bmf" data-board="${b.id}" title="New folder in this board">${ICON.plus} Folder</button>` : ""}</div>
-      ${folded ? "" : `<div class="bmv-body">${inner || `<div class="bmv-empty">No bookmarks — drag some here</div>`}</div>`}
+      ${folded ? "" : `<div class="bmv-body">${inner || `<div class="bmv-empty">No links — drag some here</div>`}</div>`}
     </section>`;
   }).join("");
   const any = ws.boards.some(b => !asleep(b) && (b.bookmarks || []).length);
   keepScroll(main, () => {
-    main.innerHTML = `<div class="vwrap bmv">${vbar(`<span class="hint">Every board's bookmarks, with the notes linked to each.</span><span class="spacer"></span>
-        ${optCheck("bmNotes", true, "Show notes")}${optCheck("bmOnlyLinked", false, "Only bookmarks with notes")}`)}
-      ${blocks || (any ? `<div class="lane-empty">No bookmarks match.</div>` : emptyHtml("No bookmarks yet", "Add them from the <b>Bookmarks</b> fold-out at the top of each board in the <b>Board</b> view."))}
+    main.innerHTML = `<div class="vwrap bmv">${vbar(`<span class="hint">Every board's links, with the notes linked to each.</span><span class="spacer"></span>
+        ${optCheck("bmNotes", true, "Show notes")}${optCheck("bmOnlyLinked", false, "Only links with notes")}`)}
+      ${blocks || (any ? `<div class="lane-empty">No links match.</div>` : emptyHtml("No links yet", "Add them from the <b>Links</b> fold-out at the top of each board in the <b>Board</b> view."))}
     </div>`;
   });
   return total;

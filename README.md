@@ -1,7 +1,7 @@
 # taskwise
 
 Project boards in your browser. taskwise keeps notes in boards and groups, with
-bookmarks, tags and due dates you type in plain words ("next week", "before the
+links, tags and due dates you type in plain words ("next week", "before the
 15th"). The same notes can be seen as a table, an agenda, a focus list and other
 views.
 
@@ -53,20 +53,20 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - Collapse, hide or hibernate groups and boards
 
 **Notes**
-- Quick add with `#tags` and a due date after `!`
+- Add from the + under Links, picking the section; quick add takes `#tags` and a due date after `!`
 - Due dates in plain words, shown relative to today
 - Filters by search, due date, board, section and tag
 
 **Views**
-- Board, List, Table, Agenda, Focus, Tags, Sections and Bookmarks
+- Board, List, Table, Agenda, Focus, Tags, Sections and Links
 
-**Bookmarks**
-- Links and local files on each board, in nested folders
-- Notes can link to bookmarks
+**Links**
+- Web links and local files on each board, in nested folders
+- Drag a link onto a note on any board to attach it
 
 ## Network use
 
-taskwise runs locally. It contacts the sites you bookmark to get their icons, and
+taskwise runs locally. It contacts the sites in your Links to get their icons, and
 GitHub for the update check.
 
 ## Where data lives
@@ -75,7 +75,7 @@ GitHub for the update check.
   previous save
 - `~/.config/taskwise/config.json`: which folder you chose
 - `~/.config/taskwise/settings.json`: theme, text size, last view and filters
-- `~/.cache/taskwise/favicons/`: bookmark icons
+- `~/.cache/taskwise/favicons/`: link icons
 - `~/.local/state/taskwise/`: update check state, and the server log when
   started without systemd
 - `journalctl --user -u taskwise`: the server log when systemd started it

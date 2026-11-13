@@ -714,15 +714,57 @@ body.app-offline #offline { display: flex; }
 .bmv-body { padding-left: 14px; }
 .bmv-empty { margin-left: calc(var(--d, 0) * 18px); padding: 6px 10px; color: var(--faint); font-size: calc(12px * var(--ui-scale)); }
 
-/* a note opened to read; Edit switches to the editor */
+/* a note opened: laid out for reading, every part editable in place */
 .modal.note-view { gap: 14px; }
-.nv-where { display: flex; align-items: center; gap: 7px; font-size: calc(12px * var(--ui-scale)); color: var(--faint); font-weight: 500; }
-.nv-where .dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
-.modal h3.nv-title { font-size: calc(20px * var(--ui-scale)); line-height: 1.3; word-break: break-word; margin-top: -4px; }
-.nv-title.is-done { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
-.nv-body { white-space: pre-wrap; word-break: break-word; line-height: 1.6; font-size: calc(14px * var(--ui-scale)); max-height: 55vh; overflow: auto; }
-.nv-body.empty { color: var(--faint); font-style: italic; }
 .nv-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .nv-links { display: flex; flex-wrap: wrap; gap: 6px; }
 .nv-links .lnk-wrap { max-width: 320px; }
 .nv-links .lnk-more { opacity: 1; }
+
+/* the editor: the view panel with its parts made editable */
+.modal.note-edit .title-in { height: auto; line-height: 1.3; padding: 2px 8px; margin-top: -6px; }
+.modal.note-edit .title-in.is-done { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
+.modal button.ne-where, :root[data-theme="light"] .modal button.ne-where {
+  display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; height: 24px; padding: 0 6px; margin: -2px -6px;
+  background: none; border: none; box-shadow: none; border-radius: 6px;
+  font-size: calc(12px * var(--ui-scale)); color: var(--faint); font-weight: 500;
+}
+.modal button.ne-where .dot { width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+.modal button.ne-where svg { opacity: 0; transition: opacity 0.12s; }
+.modal button.ne-where:hover, .modal button.ne-where.on { background: var(--hover); color: var(--muted); }
+.modal button.ne-where:hover svg, .modal button.ne-where.on svg { opacity: 1; }
+.modal button.ne-where.on svg { transform: rotate(90deg); }
+.modal textarea.ne-body, :root[data-theme="light"] .modal textarea.ne-body {
+  min-height: calc(3 * 1.6em + 12px); max-height: 55vh; resize: none; overflow: auto;
+  font-size: calc(14px * var(--ui-scale)); line-height: 1.6; padding: 6px 8px; margin: -6px -8px; width: calc(100% + 16px) !important;
+  background: none; border-color: transparent; box-shadow: none;
+}
+.modal textarea.ne-body:hover { border-color: var(--border); }
+.modal textarea.ne-body:focus { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px var(--accent-bg); }
+.ne-meta button.ne-chip, :root[data-theme="light"] .ne-meta button.ne-chip { border: none; box-shadow: none; cursor: pointer; }
+.ne-meta button.pill.ne-chip:hover { background: color-mix(in srgb, var(--tc) 22%, transparent); }
+.ne-meta button.due.ne-chip:hover { filter: brightness(1.1); }
+.ne-meta button.ne-add, :root[data-theme="light"] .ne-meta button.ne-add {
+  height: 20px; padding: 0 7px 0 4px; gap: 2px; border-radius: 6px; font-size: calc(11px * var(--ui-scale)); font-weight: 550;
+  background: none; border: 1px dashed var(--border); color: var(--faint); box-shadow: none;
+}
+.ne-meta button.ne-add svg { width: 12px; height: 12px; }
+.ne-meta button.ne-add:hover, .ne-meta button.ne-add.on { border-color: var(--border-strong); color: var(--text); background: var(--hover); }
+.ne-meta button.ne-chip.on { box-shadow: 0 0 0 1.5px var(--border-strong); }
+.ne-panel { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 12px; background: var(--raised); border: 1px solid var(--border); animation: fade 0.12s ease-out; }
+:root:not([data-theme="light"]) .ne-panel { background: rgba(255,255,255,0.02); }
+.ne-panel[hidden], .modal .section-f[hidden] { display: none; }
+.ne-panel .link-pick { background: var(--surface); }
+
+/* the done check sits top-right, as on a card */
+.modal.note-edit { position: relative; }
+.modal.note-edit > .check { position: absolute; top: 20px; right: 22px; width: 24px; height: 24px; }
+.modal.note-edit .ne-where { margin-right: 34px; }
+
+/* right-click menu on a note */
+.menu-label .due { margin-left: 6px; vertical-align: middle; }
+.menu-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 8px 6px; max-width: 280px; }
+.menu-chips button, :root[data-theme="light"] .menu-chips button { height: 24px; padding: 0 9px; font-size: calc(11.5px * var(--ui-scale)); border-radius: 999px; background: var(--chip); border-color: transparent; color: var(--muted); box-shadow: none; }
+.menu-chips button:hover { color: var(--text); background: var(--btn-hover); }
+.menu-chips.tag-pick .pill { height: 24px; }
+.menu-chips.tag-pick .pill.on { background: color-mix(in srgb, var(--tc) 13%, transparent); color: color-mix(in srgb, var(--tc) 50%, var(--text)); }

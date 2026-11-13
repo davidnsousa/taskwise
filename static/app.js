@@ -507,7 +507,7 @@ document.addEventListener("click", e => {
   e.preventDefault(); e.stopPropagation();
   const n = note(btn.dataset.lnkNote), x = bookmark(btn.dataset.lnk);
   if (!n || !x) return;
-  const inView = !!btn.closest(".note-view");
+  const ov = btn.closest(".overlay");
   popMenu(btn, `
     <button data-m="open">${ICON.link} Open</button>
     <button data-m="edit">${ICON.edit} Edit…</button>
@@ -524,7 +524,7 @@ document.addEventListener("click", e => {
         const snapshot = JSON.stringify(ws);
         n.links = (n.links || []).filter(id => id !== x.b.id); n.updated = nowSec();
         save(); render();
-        if (inView) viewNote(n);
+        ov?._refresh?.();
         offerUndo(`Removed “${esc(x.b.title)}” from “${esc(n.title || "note")}”. It's still in ${esc(x.board.name)}'s Links.`, snapshot);
         break;
       }
@@ -828,8 +828,8 @@ $("#main").addEventListener("click", e => {
     case "edit-bm": editBookmark(b, e.target.closest("li").dataset.bm); return;
     case "filter-bm": { const id = e.target.closest("li").dataset.bm; ui.bookmark = ui.bookmark === id ? null : id; render(); return; }
   }
-  if (card) { viewNote(note(card.dataset.note)); return; }
-  if (row) { viewNote(note(row.dataset.note)); return; }
+  if (card) { openNote(note(card.dataset.note)); return; }
+  if (row) { openNote(note(row.dataset.note)); return; }
   // a collapsed board or group opens with a click anywhere on its strip
   if (col?.classList.contains("collapsed") && !act) { b.collapsed = false; save(); renderMain(); return; }
   if (grpEl?.classList.contains("collapsed") && !act) { g.collapsed = false; save(); render(); return; }
@@ -1642,72 +1642,107 @@ function editBookmark(b, id, folderId = null) {
 
 const DUE_CHIPS = ["today", "tomorrow", "this week", "next week", "2 weeks", "this month", "next month"];
 
-// a note opened from the board or a view: read it whole, with Edit to change it
-function viewNote(n) {
-  if (!n) return;
-  const b = boardOf(n), sec = section(b, n.sectionId);
-  const due = n.due?.target ? `${dueBadge(n)}<span class="hint">${esc(Due.describe(n.due))}</span>` : "";
-  const links = linkChips(n);
-  const o = modal(`
-    <div class="nv-where"><span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "")} › ${esc(sec ? sec.name : "General")}</div>
-    <h3 class="nv-title ${isDone(n) ? "is-done" : ""}">${esc(n.title || "(untitled)")}</h3>
-    ${(n.body || "").trim() ? `<div class="nv-body">${esc(n.body)}</div>` : `<div class="nv-body empty">No details.</div>`}
-    ${(n.tags || []).length || due ? `<div class="nv-meta">${due}${tagPills(n)}</div>` : ""}
-    ${links ? `<div class="section-f"><span class="lbl">Links</span><div class="nv-links">${links}</div></div>` : ""}
-    <div class="foot">
-      <button class="ghost" id="vDone">${ICON.check} ${isDone(n) ? "Not done" : "Mark done"}</button>
-      <span class="hint">created ${ago(n.created)}${n.updated && n.updated !== n.created ? ` · edited ${ago(n.updated)}` : ""}</span>
-      <div class="spacer"></div><button class="ghost" id="vClose">Close</button><button class="primary" id="vEdit" title="Edit (E)">${ICON.edit} Edit</button></div>`, "note-view");
-  $("#vClose", o).onclick = closeModal;
-  $("#vEdit", o).onclick = () => openNote(n);
-  $("#vDone", o).onclick = () => { toggleDone(n); viewNote(n); };
-  o.addEventListener("keydown", e => {
-    if (e.key.toLowerCase() === "e" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.matches("input, textarea, select")) { e.preventDefault(); openNote(n); }
-  });
-  o.tabIndex = -1; o.focus();
-}
-
+// a note opened from the board or a view, ready to edit: changes apply as you make them
 function openNote(n) {
   if (!n) return;
   const sectionOptions = () => {
     const b = boardOf(n);
     return `<option value="">— none (top of the board)</option>` + (b?.sections || []).map(s => `<option value="${s.id}" ${s.id === n.sectionId ? "selected" : ""}>${esc(s.name)}</option>`).join("");
   };
+  // laid out like the read-only view; the less-used controls open in a panel under the chips
   const o = modal(`
-    <input type="text" class="title-in" id="nTitle" value="${esc(n.title)}" placeholder="Title">
-    <div class="row">
+    <button class="check" id="nDone"></button>
+    <button class="ne-where" data-open="where" title="Move to another board or section"></button>
+    <div class="ne-panel" data-panel="where" hidden><div class="row">
       <label class="f" style="flex:1.3">Board<select id="nBoard">${boardOptions(n.boardId, { allowAsleep: false })}</select></label>
       <label class="f" style="flex:1">Section<select id="nSection">${sectionOptions()}</select></label>
-    </div>
-    <label class="f">Notes<textarea class="body-in" id="nBody" placeholder="Details…">${esc(n.body)}</textarea></label>
-    <div class="section-f"><span class="lbl">Tags</span><div class="tag-pick" id="nTags"></div></div>
-    <div class="section-f"><span class="lbl">Due <span class="hint">— type it the way you'd say it: “3 days”, “next week”, “2 weeks”, “next month”, “before the 15th”, “friday”</span></span>
-      <div class="due-row"><input type="text" id="nDue" placeholder="no due" value="${esc(n.due?.text || "")}"><span class="due-preview" id="nDuePrev"></span></div>
+    </div></div>
+    <input type="text" class="title-in ${isDone(n) ? "is-done" : ""}" id="nTitle" value="${esc(n.title)}" placeholder="Title">
+    <textarea class="body-in ne-body" id="nBody" placeholder="Add details…">${esc(n.body)}</textarea>
+    <div class="nv-meta ne-meta" id="nMeta"></div>
+    <div class="ne-panel" data-panel="tags" hidden><div class="tag-pick" id="nTags"></div></div>
+    <div class="ne-panel" data-panel="due" hidden>
+      <div class="due-row"><input type="text" id="nDue" placeholder="no due" value="${esc(n.due?.text || "")}" title="Type it the way you'd say it: “3 days”, “next week”, “before the 15th”, “friday”"><span class="due-preview" id="nDuePrev"></span></div>
       <div class="due-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}<button data-due="before ">before day…</button><button data-due="">clear</button></div>
     </div>
-    <div class="section-f"><span class="lbl">Links <span class="hint">— from any board's Links, or drag one onto the note</span></span>
+    <div class="ne-panel" data-panel="links" hidden>
       <input type="search" id="nLinkFilter" placeholder="filter links…" style="display:none">
       <div class="link-pick" id="nLinks"></div>
       <div class="row"><input type="text" id="nNewUrl" placeholder="add a new link: https://… or a path" style="flex:1.4"><input type="text" id="nNewName" placeholder="name (optional)" style="flex:1"><button id="nAddUrl">Add & link</button>
         <button id="nAddFile" title="Choose local files to add to this board's Links and link here">${ICON.file} Files…</button><button id="nAddFolder" title="Choose a local folder">${ICON.folder}</button></div>
     </div>
-    <div class="foot"><button class="danger" id="nDelete">Delete note</button>
+    <div class="section-f" id="nLinkSec"><span class="lbl">Links</span><div class="nv-links" id="nLinkChips"></div></div>
+    <div class="foot">
       <span class="hint">created ${ago(n.created)}${n.updated && n.updated !== n.created ? ` · edited ${ago(n.updated)}` : ""}</span>
-      <div class="spacer"></div><button class="primary" id="nClose">Done</button></div>`);
+      <div class="spacer"></div><button class="danger" id="nDelete">Delete</button><button class="primary" id="nClose">Close</button></div>`, "note-view note-edit");
+
+  // one panel open at a time; the chip that opened it stays lit
+  let open = null;
+  const showPanel = name => {
+    open = open === name ? null : name;
+    $$(".ne-panel", o).forEach(p => { p.hidden = p.dataset.panel !== open; });
+    $$("[data-open]", o).forEach(b => b.classList.toggle("on", b.dataset.open === open));
+    if (open) $(`.ne-panel[data-panel="${open}"]`, o).querySelector("input:not([style*='none']), select")?.focus();
+  };
+  o.addEventListener("click", e => {
+    const b = e.target.closest("[data-open]");
+    if (b && o.contains(b)) { e.preventDefault(); showPanel(b.dataset.open); }
+  });
+  // Esc closes an open panel first, then the note
+  o.addEventListener("keydown", e => {
+    if (e.key === "Escape" && open) { e.preventDefault(); e.stopPropagation(); showPanel(open); }
+  });
+
+  const renderWhere = () => {
+    const b = boardOf(n), sec = section(b, n.sectionId);
+    $(".ne-where", o).innerHTML = `<span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "")} › ${esc(sec ? sec.name : "General")}${ICON.chevron}`;
+  };
+  const renderMeta = () => {
+    let due = "";
+    if (n.due?.target) {
+      const s = Due.status(n.due.target);
+      due = `<button class="due ${s.cls} ne-chip" data-open="due" title="${esc(Due.describe(n.due))}">${ICON.clock}${esc(s.label)}</button>`;
+    }
+    $("#nMeta", o).innerHTML = due
+      + (n.tags || []).map(t => `<button class="pill ne-chip" data-open="tags" style="--tc:${tagInfo(t).color}">${esc(t)}</button>`).join("")
+      + `<button class="ne-add" data-open="tags">${ICON.plusSm} tag</button>`
+      + (due ? "" : `<button class="ne-add" data-open="due">${ICON.plusSm} due</button>`)
+      + `<button class="ne-add" data-open="links">${ICON.plusSm} link</button>`;
+    $$("[data-open]", $("#nMeta", o)).forEach(b => b.classList.toggle("on", b.dataset.open === open));
+  };
+  const renderLinkChips = () => {
+    const html = linkChips(n);
+    $("#nLinkChips", o).innerHTML = html;
+    $("#nLinkSec", o).hidden = !html;
+  };
+  const renderDone = () => {
+    $("#nDone", o).innerHTML = ICON.check;
+    $("#nDone", o).title = isDone(n) ? "not done" : "mark done";
+    $(".modal", o).classList.toggle("is-done", isDone(n));
+    $("#nTitle", o).classList.toggle("is-done", isDone(n));
+  };
+  $("#nDone", o).onclick = () => { toggleDone(n); renderDone(); renderMeta(); renderTags(); };
+  o._refresh = () => { renderMeta(); renderLinkChips(); renderLinks(); };
+  renderWhere(); renderMeta(); renderLinkChips(); renderDone();
+
+  // the body grows with its text, up to the same height the view allows
+  const bodyIn = $("#nBody", o);
+  const fit = () => { bodyIn.style.height = "auto"; bodyIn.style.height = `${bodyIn.scrollHeight + 2}px`; };
+  requestAnimationFrame(fit);
 
   const touch = () => { n.updated = nowSec(); save(); };
   const titleIn = $("#nTitle", o);
   if (!n.title) titleIn.focus();
   titleIn.oninput = () => { n.title = titleIn.value; touch(); };
-  $("#nBody", o).oninput = e => { n.body = e.target.value; touch(); };
+  bodyIn.oninput = () => { n.body = bodyIn.value; fit(); touch(); };
   $("#nBoard", o).onchange = e => {
     n.boardId = e.target.value;
     n.sectionId = null;
     placeAtEnd(n);
     $("#nSection", o).innerHTML = sectionOptions();
-    touch();
+    renderWhere(); touch();
   };
-  $("#nSection", o).onchange = e => { n.sectionId = e.target.value || null; placeAtEnd(n); touch(); };
+  $("#nSection", o).onchange = e => { n.sectionId = e.target.value || null; placeAtEnd(n); renderWhere(); touch(); };
 
   // tags
   const renderTags = () => {
@@ -1721,7 +1756,7 @@ function openNote(n) {
     if (n.tags.includes(t)) n.tags = n.tags.filter(x => x !== t);
     else if (t === "done") markDone(n);
     else n.tags = [...n.tags, t];
-    touch(); renderTags();
+    touch(); renderTags(); renderMeta();
   });
   $("#nTags", o).addEventListener("keydown", e => {
     if (e.target.id !== "nNewTag" || e.key !== "Enter") return;
@@ -1731,7 +1766,7 @@ function openNote(n) {
     ensureTags([t]);
     n.tags ||= [];
     if (!n.tags.includes(t)) n.tags.push(t);
-    touch(); renderTags();
+    touch(); renderTags(); renderMeta();
     $("#nNewTag", o).focus();
   });
 
@@ -1748,8 +1783,8 @@ function openNote(n) {
   };
   const applyDue = () => {
     const d = showDue();
-    if (d === "") { n.due = null; touch(); }
-    else if (d && (!n.due || n.due.text !== d.text || n.due.target !== d.target)) { n.due = { ...d, set: Due.todayIso() }; touch(); }
+    if (d === "") { n.due = null; touch(); renderMeta(); }
+    else if (d && (!n.due || n.due.text !== d.text || n.due.target !== d.target)) { n.due = { ...d, set: Due.todayIso() }; touch(); renderMeta(); }
   };
   if (n.due?.target) {
     const s = Due.status(n.due.target);
@@ -1788,7 +1823,7 @@ function openNote(n) {
     const id = e.target.dataset.bm; if (!id) return;
     n.links ||= [];
     n.links = e.target.checked ? [...n.links, id] : n.links.filter(x => x !== id);
-    touch();
+    touch(); renderLinkChips();
   };
   const addUrl = () => {
     const url = safeUrl($("#nNewUrl", o).value);
@@ -1804,7 +1839,7 @@ function openNote(n) {
     $("#nNewUrl", o).value = "";
     $("#nNewName", o).value = "";
     $("#nNewUrl", o).focus();
-    touch(); renderLinks();
+    touch(); renderLinks(); renderLinkChips();
     if (dup) toast(`Already in Links (“${esc(x.title)}” in ${bmWhere(dup)}) — linked it.`);
   };
   $("#nAddUrl", o).onclick = addUrl;
@@ -1820,7 +1855,7 @@ function openNote(n) {
       if (!x) { x = { id: uid(), url: it.url, title: it.title }; b.bookmarks.push(x); }
       if (!n.links.includes(x.id)) n.links.push(x.id);
     }
-    touch(); renderLinks();
+    touch(); renderLinks(); renderLinkChips();
   };
   $("#nAddFile", o).onclick = () => addPicked("file");
   $("#nAddFolder", o).onclick = () => addPicked("folder");
@@ -1829,13 +1864,59 @@ function openNote(n) {
 
   o._close = () => { closeModal(); render(); };
   $("#nClose", o).onclick = o._close;
-  $("#nDelete", o).onclick = () => {
-    const snapshot = JSON.stringify(ws);
-    ws.notes = ws.notes.filter(x => x !== n);
-    closeModal(); save(); render();
-    offerUndo(`Deleted “${esc(n.title || "note")}”.`, snapshot);
-  };
+  $("#nDelete", o).onclick = () => { closeModal(); deleteNote(n); };
 }
+
+function deleteNote(n) {
+  const snapshot = JSON.stringify(ws);
+  ws.notes = ws.notes.filter(x => x !== n);
+  save(); render();
+  offerUndo(`Deleted “${esc(n.title || "note")}”.`, snapshot);
+}
+
+// right-click a note on any view: the common changes without opening it.
+// Tags stay open so several can be toggled; the rest close the menu.
+function noteMenu(n, x, y) {
+  const at = { getBoundingClientRect: () => ({ left: x, bottom: y }) };
+  const b = boardOf(n), secs = b?.sections || [];
+  const tags = ws.tags.filter(t => t.name !== "done");
+  const due = n.due?.target ? (() => { const s = Due.status(n.due.target); return `<span class="due ${s.cls}">${ICON.clock}${esc(s.label)}</span>`; })() : "";
+  popMenu(at, `
+    <button data-m="open">${ICON.edit} Open</button>
+    <button data-m="done">${ICON.check} ${isDone(n) ? "Mark not done" : "Mark done"}</button>
+    <hr><div class="menu-label">Due ${due}</div>
+    <div class="menu-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}${n.due ? `<button data-due="">clear</button>` : ""}</div>
+    ${tags.length ? `<hr><div class="menu-label">Tags</div>
+    <div class="menu-chips tag-pick">${tags.map(t => `<button class="pill ${(n.tags || []).includes(t.name) ? "on" : ""}" data-tag="${esc(t.name)}" style="--tc:${t.color}">${esc(t.name)}</button>`).join("")}</div>` : ""}
+    ${secs.length ? `<hr><div class="menu-label">Move to section</div>
+    ${[{ id: "", name: "General" }, ...secs].filter(s => s.id !== (n.sectionId || "")).map(s => `<button data-sec="${s.id || "-"}">${ICON.chevron} ${esc(s.name)}</button>`).join("")}` : ""}
+    <hr><button data-m="delete" class="danger">${ICON.x} Delete</button>`, d => {
+    const touch = () => { n.updated = nowSec(); save(); render(); };
+    if (d.tag !== undefined) {
+      n.tags ||= [];
+      n.tags = n.tags.includes(d.tag) ? n.tags.filter(t => t !== d.tag) : [...n.tags, d.tag];
+      touch(); noteMenu(n, x, y); return;
+    }
+    if (d.due !== undefined) {
+      if (d.due === "") n.due = null;
+      else { const p = Due.parse(d.due); if (p) n.due = { ...p, set: Due.todayIso() }; }
+      touch(); return;
+    }
+    if (d.sec) { n.sectionId = d.sec === "-" ? null : d.sec; placeAtEnd(n); touch(); return; }
+    switch (d.m) {
+      case "open": openNote(n); break;
+      case "done": toggleDone(n); break;
+      case "delete": deleteNote(n); break;
+    }
+  });
+}
+document.addEventListener("contextmenu", e => {
+  const el = e.target.closest?.("#main .card[data-note], #main .crow[data-note], #main tr.row[data-note]");
+  if (!el || e.target.closest("a, input, textarea")) return;
+  const n = note(el.dataset.note); if (!n) return;
+  e.preventDefault();
+  noteMenu(n, e.clientX, e.clientY);
+});
 
 function ago(sec) {
   if (!sec) return "";

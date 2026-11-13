@@ -57,6 +57,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - Due dates in plain words, shown relative to today
 - Filters by search, due date, board, section and tag
 - Notes can depend on other notes; the Graph view draws who waits on whom
+- Each board has a folded Archive: done notes go there, and any note can be archived
 
 **Views**
 - Board, List, Table, Agenda, Focus, Tags, Sections, Links and Graph

@@ -37,6 +37,7 @@ const ICON = {
   file: svg('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>', 14),
   folder: svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', 14),
   dep: svg('<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H13a3 3 0 0 1 3 3v6.5"/><path d="m13 13 3 3 3-3"/>', 12),
+  archive: svg('<rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9M10 13h4"/>', 14),
   fold: svg('<path d="M4 12h6m0 0-3-3m3 3-3 3M20 12h-6m0 0 3-3m-3 3 3 3"/>', 14),
   unfold: svg('<path d="M10 12H3m0 0 3-3m-3 3 3 3M14 12h7m0 0-3-3m3 3-3 3"/>', 14),
 };
@@ -237,6 +238,15 @@ function folderDescendants(b, id) {
 }
 const bmCountIn = (b, id) => { const set = folderDescendants(b, id); return (b.bookmarks || []).filter(x => set.has(x.folderId)).length; };
 const isDone = n => (n.tags || []).includes("done");
+// a board's archive holds its done notes and any note put there by hand
+// (n.archived); archived notes stay out of the sections and the other views
+const inArchive = n => isDone(n) || !!n.archived;
+function setArchived(n, on) {
+  if (on) n.archived = true;
+  else { delete n.archived; if (isDone(n)) n.tags = n.tags.filter(t => t !== "done"); }
+  n.updated = nowSec();
+  placeAtEnd(n);
+}
 // marking a note done also drops the tags that only matter while it's open
 const OPEN_ONLY_TAGS = ["urgent", "waiting"];
 function markDone(n) {
@@ -337,9 +347,10 @@ function ensureTags(names) {
 
 // ---------- filtering ----------
 
-function matches(n) {
+function matches(n, { archive = false } = {}) {
   const b = boardOf(n);
   if (asleep(b)) return false;
+  if (n.archived && archive !== true) return false;
   if (ui.board && n.boardId !== ui.board) return false;
   if (ui.section && sectionKey(sectionName(n)) !== ui.section) return false;
   if (ui.bookmark && !(n.links || []).includes(ui.bookmark)) return false;
@@ -604,8 +615,10 @@ function quickHtml(b) {
 }
 
 function columnHtml(b) {
-  const notes = ws.notes.filter(n => n.boardId === b.id);
+  const mine = ws.notes.filter(n => n.boardId === b.id);
+  const notes = mine.filter(n => !inArchive(n));
   const shown = notes.filter(matches);
+  const arch = mine.filter(inArchive), archShown = arch.filter(n => matches(n, { archive: true }));
   const bms = b.bookmarks || [];
   const listFor = secId => shown.filter(n => (n.sectionId || null) === secId);
   const flags = `${b.hidden ? `<span class="flag" title="hidden">${ICON.eyeOff}</span>` : ""}`;
@@ -640,6 +653,13 @@ function columnHtml(b) {
           <div class="notes" data-section="${sec ? sec.id : ""}">${list.map(cardHtml).join("")}</div>
         </div>`;
       }).join("")}
+      <div class="archive ${b.archiveOpen ? "" : "collapsed"}">
+        <div class="arch-head" data-act="toggle-archive" title="Done notes, and notes archived by hand · drop a card here to archive it">
+          <span class="arrow">${ICON.chevron}</span>${ICON.archive}<span class="t">Archive</span>
+          ${arch.length ? `<span class="n">${archShown.length === arch.length ? arch.length : `${archShown.length}/${arch.length}`}</span>` : ""}
+        </div>
+        <div class="notes" data-archive="1">${archShown.map(cardHtml).join("") || `<div class="arch-empty">${arch.length ? "Nothing here matches the filters." : "Done notes land here. Drop a card here, or right-click it › Archive."}</div>`}</div>
+      </div>
     </div>
   </section>`;
 }
@@ -665,7 +685,7 @@ function renderBoard(main) {
   main.innerHTML = `<div class="canvas">${groups.map(g => {
     const bs = only ? [only] : boardsIn(g).filter(b => !b.hidden && !b.hibernated);
     const away = boardsIn(g).filter(b => b.hidden || b.hibernated).length;
-    const count = ws.notes.filter(n => !asleep(boardOf(n)) && boardOf(n)?.groupId === g.id && matches(n)).length;
+    const count = ws.notes.filter(n => !asleep(boardOf(n)) && boardOf(n)?.groupId === g.id && !inArchive(n) && matches(n)).length;
     return `<section class="group ${g.collapsed && !only ? "collapsed" : ""}" data-group="${g.id}" style="--gc:${g.color}">
       <div class="group-head" title="drag to move the group · double-click the name to rename">
         <span class="grip">${ICON.grip}</span>
@@ -694,7 +714,7 @@ function renderBoard(main) {
 // the open ones get the full width
 function trayHtml(folded, empty) {
   const chips = folded.map(b => {
-    const n = ws.notes.filter(x => x.boardId === b.id && matches(x)).length;
+    const n = ws.notes.filter(x => x.boardId === b.id && !inArchive(x) && matches(x)).length;
     return `<button class="fold-chip" data-act="unfold" data-unfold="${b.id}" style="--pc:${b.color}" title="Expand “${esc(b.name)}”">
       <span class="dot"></span>${esc(b.name)}<span class="n">${n}</span>${ICON.unfold}</button>`;
   }).join("");
@@ -844,6 +864,7 @@ $("#main").addEventListener("click", e => {
     case "bmf-menu": e.stopPropagation(); folderMenu(b, bmFolder(b, e.target.closest("[data-folder]").dataset.folder), e.target.closest("button")); return;
     case "bmf-toggle": { const f = bmFolder(b, e.target.closest("[data-folder]").dataset.folder); f.collapsed = !f.collapsed; save(); renderMain(); return; }
     case "toggle-bm": b.bookmarksOpen = !b.bookmarksOpen; save(); renderMain(); return;
+    case "toggle-archive": b.archiveOpen = !b.archiveOpen; save(); renderMain(); return;
     case "edit-bm": editBookmark(b, e.target.closest("li").dataset.bm); return;
     case "filter-bm": { const id = e.target.closest("li").dataset.bm; ui.bookmark = ui.bookmark === id ? null : id; render(); return; }
   }
@@ -958,6 +979,8 @@ function dropCol(e) {
 function dropList(e, col) {
   const list = e.target.closest(".notes");
   if (list && col.contains(list)) return list;
+  const arch = e.target.closest(".archive");
+  if (arch && col.contains(arch)) return $(".notes", arch);
   const sec = e.target.closest(".section");
   if (sec && col.contains(sec)) return $(".notes", sec);
   const secs = $$(".col-body > .section", col);
@@ -993,12 +1016,12 @@ $("#main").addEventListener("dragover", e => {
     if (!at) return;
     const line = document.createElement("div");
     line.className = "drop-line sec-line";
-    at.body.insertBefore(line, at.before);
+    at.body.insertBefore(line, at.before || $(":scope > .archive", at.body));
     return;
   }
   if (drag.kind === "note") {
     const list = dropList(e, col);
-    const sec = list.closest(".section");
+    const sec = list.closest(".section, .archive");
     if (sec?.classList.contains("collapsed")) { sec.classList.add("drag-over-col"); return; }
     const line = document.createElement("div");
     line.className = "drop-line";
@@ -1039,10 +1062,13 @@ $("#main").addEventListener("drop", e => {
   if (drag.kind === "note") {
     const n = note(drag.id);
     const list = dropList(e, col);
-    const collapsedSec = list.closest(".section.collapsed");
+    const collapsedSec = list.closest(".section.collapsed, .archive.collapsed");
     const before = collapsedSec ? null : cardAfter(list, e.clientY);
     n.boardId = bid;
-    n.sectionId = list.dataset.section || null;
+    // into the archive keeps its section, for when it comes back out;
+    // out of the archive into a section brings it back (not done any more)
+    if (list.dataset.archive) n.archived = true;
+    else { n.sectionId = list.dataset.section || null; if (inArchive(n)) setArchived(n, false); }
     n.updated = nowSec();
     if (before) {
       ws.notes.splice(ws.notes.indexOf(n), 1);
@@ -1720,7 +1746,7 @@ function openNote(n, { panel = null } = {}) {
 
   const renderWhere = () => {
     const b = boardOf(n), sec = section(b, n.sectionId);
-    $(".ne-where", o).innerHTML = `<span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "")} › ${esc(sec ? sec.name : "General")}${ICON.chevron}`;
+    $(".ne-where", o).innerHTML = `<span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "")} › ${esc(sec ? sec.name : "General")}${inArchive(n) ? ` · <span class="ne-arch">${ICON.archive} archived</span>` : ""}${ICON.chevron}`;
   };
   const renderMeta = () => {
     let due = "";
@@ -1747,7 +1773,7 @@ function openNote(n, { panel = null } = {}) {
     $(".modal", o).classList.toggle("is-done", isDone(n));
     $("#nTitle", o).classList.toggle("is-done", isDone(n));
   };
-  $("#nDone", o).onclick = () => { toggleDone(n); renderDone(); renderMeta(); renderTags(); };
+  $("#nDone", o).onclick = () => { toggleDone(n); renderDone(); renderMeta(); renderTags(); renderWhere(); };
   o._refresh = () => { renderMeta(); renderLinkChips(); renderLinks(); renderDeps(); };
   renderWhere(); renderMeta(); renderLinkChips(); renderDone();
 
@@ -1962,6 +1988,7 @@ function noteMenu(n, x, y) {
     <button data-m="open">${ICON.edit} Open</button>
     <button data-m="done">${ICON.check} ${isDone(n) ? "Mark not done" : "Mark done"}</button>
     <button data-m="deps">${ICON.dep} Depends on…</button>
+    <button data-m="archive">${ICON.archive} ${inArchive(n) ? "Restore from archive" : "Archive"}</button>
     <hr><div class="menu-label">Due ${due}</div>
     <div class="menu-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}${n.due ? `<button data-due="">clear</button>` : ""}</div>
     ${tags.length ? `<hr><div class="menu-label">Tags</div>
@@ -1984,6 +2011,12 @@ function noteMenu(n, x, y) {
     switch (d.m) {
       case "open": openNote(n); break;
       case "deps": openNote(n, { panel: "deps" }); break;
+      case "archive": {
+        const snapshot = JSON.stringify(ws), was = inArchive(n);
+        setArchived(n, !was); save(); render();
+        offerUndo(was ? `Restored “${esc(n.title || "note")}” to ${esc(sectionName(n))}.` : `Archived “${esc(n.title || "note")}”.`, snapshot);
+        break;
+      }
       case "done": toggleDone(n); break;
       case "delete": deleteNote(n); break;
     }

@@ -768,3 +768,38 @@ body.app-offline #offline { display: flex; }
 .menu-chips button:hover { color: var(--text); background: var(--btn-hover); }
 .menu-chips.tag-pick .pill { height: 24px; }
 .menu-chips.tag-pick .pill.on { background: color-mix(in srgb, var(--tc) 13%, transparent); color: color-mix(in srgb, var(--tc) 50%, var(--text)); }
+
+/* dependencies */
+.dep-badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 0 7px; height: 20px; font-size: calc(11px * var(--ui-scale)); font-weight: 550; white-space: nowrap; background: var(--warn-bg); color: var(--warn); }
+.dchip { display: inline-flex; align-items: center; max-width: 320px; border-radius: 6px; background: var(--chip); }
+.dchip:hover { background: var(--accent-bg); }
+.dchip button, :root[data-theme="light"] .dchip button { background: none; border: none; box-shadow: none; height: 22px; padding: 0 4px 0 7px; gap: 6px; font-size: calc(11.5px * var(--ui-scale)); font-weight: 500; color: var(--muted); min-width: 0; }
+.dchip button:hover { background: none; color: var(--text); }
+.dchip .dgo .dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dchip .dgo .ic { color: var(--ok); }
+.dchip.done .dt { text-decoration: line-through; text-decoration-color: var(--faint); }
+.dchip .dx { padding: 0 5px; color: var(--faint); opacity: 0.6; }
+.dchip .dx:hover { opacity: 1; color: var(--danger); }
+.dchip .dot, .dep-pick .dot { display: inline-block; width: 8px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+.dep-pick label .dot { margin-right: -2px; }
+.dep-pick label .dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dep-pick label.is-done .dt { text-decoration: line-through; color: var(--muted); }
+.dep-pick label.dis { opacity: 0.45; cursor: not-allowed; }
+
+/* graph view */
+.vwrap.graph { gap: 16px; }
+.gscroll { overflow-x: auto; padding-bottom: 6px; }
+.gcomp { position: relative; display: flex; align-items: center; gap: 84px; width: max-content; padding: 16px 18px; border-radius: 14px; background: var(--col); border: 1px solid var(--border); box-shadow: var(--highlight), var(--shadow-sm); }
+.gcol { display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; }
+.gedges { position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible; }
+.gedges path[data-from] { fill: none; stroke-width: 1.6; transition: stroke 0.12s, opacity 0.12s, stroke-width 0.12s; }
+.gedges path.open { stroke: color-mix(in srgb, var(--accent) 70%, transparent); }
+.gedges path.done { stroke: var(--border-strong); stroke-dasharray: 4 4; }
+.gedges .ah.open { fill: color-mix(in srgb, var(--accent) 70%, transparent); }
+.gedges .ah.done { fill: var(--border-strong); }
+.gcomp.focus .gedges path[data-from]:not(.hl) { opacity: 0.25; }
+.gcomp .gedges path.hl { stroke-width: 2.4; }
+.gnode { width: 230px; padding: 9px 11px 10px; }
+.gnode .where { margin-bottom: 3px; }
+.gnode .meta { margin-top: 8px; }
+.gnode.blocked { border-left: 3px solid var(--warn); }

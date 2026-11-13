@@ -36,6 +36,7 @@ const ICON = {
   moon: svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>', 14),
   file: svg('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>', 14),
   folder: svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', 14),
+  dep: svg('<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H13a3 3 0 0 1 3 3v6.5"/><path d="m13 13 3 3 3-3"/>', 12),
   fold: svg('<path d="M4 12h6m0 0-3-3m3 3-3 3M20 12h-6m0 0 3-3m-3 3 3 3"/>', 14),
   unfold: svg('<path d="M10 12H3m0 0 3-3m-3 3 3 3M14 12h7m0 0-3-3m3 3-3 3"/>', 14),
 };
@@ -485,6 +486,24 @@ function dueBadge(n) {
   const s = Due.status(n.due.target);
   return `<span class="due ${s.cls}" title="${esc(Due.describe(n.due))}">${ICON.clock}${esc(s.label)}</span>`;
 }
+// dependencies: n.deps holds the ids of the notes n waits on
+const depsOf = n => (n.deps || []).map(id => note(id)).filter(Boolean);
+const dependentsOf = n => ws.notes.filter(x => (x.deps || []).includes(n.id));
+const openDeps = n => depsOf(n).filter(d => !isDone(d));
+// does `from` wait on `target`, directly or through others? (adding the
+// reverse would make a loop)
+function waitsOn(from, target, seen = new Set()) {
+  if (from === target) return true;
+  if (seen.has(from.id)) return false;
+  seen.add(from.id);
+  return depsOf(from).some(d => waitsOn(d, target, seen));
+}
+function depBadge(n) {
+  if (isDone(n)) return "";
+  const w = openDeps(n);
+  if (!w.length) return "";
+  return `<span class="dep-badge" title="Waiting on: ${esc(w.map(d => d.title || "(untitled)").join(", "))}">${ICON.dep}waiting on ${w.length}</span>`;
+}
 const tagPills = n => (n.tags || []).map(t => `<span class="pill" style="--tc:${tagInfo(t).color}">${esc(t)}</span>`).join("");
 const linkChips = n => (n.links || []).map(id => {
   const x = bookmark(id); if (!x) return "";
@@ -537,7 +556,7 @@ function cardHtml(n) {
     <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
     <div class="title">${esc(n.title || "(untitled)")}</div>
     ${n.body ? `<div class="body">${esc(n.body)}</div>` : ""}
-    <div class="meta">${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
+    <div class="meta">${depBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
   </div>`;
 }
 
@@ -1643,7 +1662,7 @@ function editBookmark(b, id, folderId = null) {
 const DUE_CHIPS = ["today", "tomorrow", "this week", "next week", "2 weeks", "this month", "next month"];
 
 // a note opened from the board or a view, ready to edit: changes apply as you make them
-function openNote(n) {
+function openNote(n, { panel = null } = {}) {
   if (!n) return;
   const sectionOptions = () => {
     const b = boardOf(n);
@@ -1671,7 +1690,13 @@ function openNote(n) {
       <div class="row"><input type="text" id="nNewUrl" placeholder="add a new link: https://… or a path" style="flex:1.4"><input type="text" id="nNewName" placeholder="name (optional)" style="flex:1"><button id="nAddUrl">Add & link</button>
         <button id="nAddFile" title="Choose local files to add to this board's Links and link here">${ICON.file} Files…</button><button id="nAddFolder" title="Choose a local folder">${ICON.folder}</button></div>
     </div>
+    <div class="ne-panel" data-panel="deps" hidden>
+      <input type="search" id="nDepFilter" placeholder="find the note this one waits on…">
+      <div class="link-pick dep-pick" id="nDepPick"></div>
+    </div>
     <div class="section-f" id="nLinkSec"><span class="lbl">Links</span><div class="nv-links" id="nLinkChips"></div></div>
+    <div class="section-f" id="nDepSec"><span class="lbl">Depends on</span><div class="nv-links" id="nDepChips"></div></div>
+    <div class="section-f" id="nBlockSec"><span class="lbl">Needed by</span><div class="nv-links" id="nBlockChips"></div></div>
     <div class="foot">
       <span class="hint">created ${ago(n.created)}${n.updated && n.updated !== n.created ? ` · edited ${ago(n.updated)}` : ""}</span>
       <div class="spacer"></div><button class="danger" id="nDelete">Delete</button><button class="primary" id="nClose">Close</button></div>`, "note-view note-edit");
@@ -1707,7 +1732,8 @@ function openNote(n) {
       + (n.tags || []).map(t => `<button class="pill ne-chip" data-open="tags" style="--tc:${tagInfo(t).color}">${esc(t)}</button>`).join("")
       + `<button class="ne-add" data-open="tags">${ICON.plusSm} tag</button>`
       + (due ? "" : `<button class="ne-add" data-open="due">${ICON.plusSm} due</button>`)
-      + `<button class="ne-add" data-open="links">${ICON.plusSm} link</button>`;
+      + `<button class="ne-add" data-open="links">${ICON.plusSm} link</button>`
+      + `<button class="ne-add" data-open="deps">${ICON.plusSm} depends on</button>`;
     $$("[data-open]", $("#nMeta", o)).forEach(b => b.classList.toggle("on", b.dataset.open === open));
   };
   const renderLinkChips = () => {
@@ -1722,7 +1748,7 @@ function openNote(n) {
     $("#nTitle", o).classList.toggle("is-done", isDone(n));
   };
   $("#nDone", o).onclick = () => { toggleDone(n); renderDone(); renderMeta(); renderTags(); };
-  o._refresh = () => { renderMeta(); renderLinkChips(); renderLinks(); };
+  o._refresh = () => { renderMeta(); renderLinkChips(); renderLinks(); renderDeps(); };
   renderWhere(); renderMeta(); renderLinkChips(); renderDone();
 
   // the body grows with its text, up to the same height the view allows
@@ -1862,9 +1888,60 @@ function openNote(n) {
   $("#nNewUrl", o).onkeydown = e => { if (e.key === "Enter") addUrl(); };
   $("#nNewName", o).onkeydown = e => { if (e.key === "Enter") addUrl(); };
 
+  // dependencies
+  const depChip = (d, removable) => {
+    const db = boardOf(d);
+    return `<span class="dchip ${isDone(d) ? "done" : ""}"><button class="dgo" data-goto="${d.id}" title="Open “${esc(d.title || "(untitled)")}”${db ? ` in ${esc(db.name)}` : ""}">`
+      + `<span class="dot" style="background:${db?.color || "var(--faint)"}"></span><span class="dt">${esc(d.title || "(untitled)")}</span>${isDone(d) ? ICON.check : ""}</button>`
+      + (removable ? `<button class="dx" data-undep="${d.id}" title="Doesn't depend on this">${ICON.x}</button>` : "") + `</span>`;
+  };
+  const renderDeps = () => {
+    const ds = depsOf(n), bs = dependentsOf(n);
+    $("#nDepChips", o).innerHTML = ds.map(d => depChip(d, true)).join("");
+    $("#nBlockChips", o).innerHTML = bs.map(d => depChip(d, false)).join("");
+    $("#nDepSec", o).hidden = !ds.length;
+    $("#nBlockSec", o).hidden = !bs.length;
+  };
+  const depFilter = $("#nDepFilter", o);
+  const renderDepPick = () => {
+    const q = depFilter.value.toLowerCase().split(/\s+/).filter(Boolean);
+    const mine = new Set(n.deps || []);
+    const items = ws.notes.filter(x => x !== n && (mine.has(x.id) || !asleep(boardOf(x))))
+      .filter(x => !q.length || q.every(w => `${x.title} ${x.body} ${boardOf(x)?.name || ""}`.toLowerCase().includes(w)))
+      // chosen first, then this board's, then open before done
+      .map((x, i) => ({ x, k: (mine.has(x.id) ? 0 : 4) + (x.boardId === n.boardId ? 0 : 2) + (isDone(x) ? 1 : 0), i }))
+      .sort((a, b) => a.k - b.k || a.i - b.i).slice(0, 150);
+    $("#nDepPick", o).innerHTML = items.map(({ x }) => {
+      const xb = boardOf(x), xs = section(xb, x.sectionId);
+      const loop = !mine.has(x.id) && waitsOn(x, n);
+      return `<label class="${loop ? "dis" : ""} ${isDone(x) ? "is-done" : ""}" ${loop ? `title="“${esc(x.title || "(untitled)")}” already waits on this note"` : ""}>`
+        + `<input type="checkbox" data-dep="${x.id}" ${mine.has(x.id) ? "checked" : ""} ${loop ? "disabled" : ""}>`
+        + `<span class="dot" style="background:${xb?.color || "var(--faint)"}"></span><span class="dt">${esc(x.title || "(untitled)")}</span>`
+        + ` <span class="u">${esc(xb?.name || "")}${xs ? ` › ${esc(xs.name)}` : ""}${loop ? " · would make a loop" : ""}</span></label>`;
+    }).join("") || `<div class="none">${ws.notes.length > 1 ? "no match" : "No other notes yet."}</div>`;
+  };
+  renderDeps(); renderDepPick();
+  depFilter.oninput = renderDepPick;
+  $("#nDepPick", o).onchange = e => {
+    const id = e.target.dataset.dep; if (!id) return;
+    n.deps ||= [];
+    n.deps = e.target.checked ? [...n.deps.filter(x => x !== id), id] : n.deps.filter(x => x !== id);
+    if (!n.deps.length) delete n.deps;
+    touch(); renderDeps();
+  };
+  o.addEventListener("click", e => {
+    const go = e.target.closest("[data-goto]"), un = e.target.closest("[data-undep]");
+    if (un) {
+      n.deps = (n.deps || []).filter(x => x !== un.dataset.undep);
+      if (!n.deps.length) delete n.deps;
+      touch(); renderDeps(); renderDepPick();
+    } else if (go) { render(); openNote(note(go.dataset.goto)); }
+  });
+
   o._close = () => { closeModal(); render(); };
   $("#nClose", o).onclick = o._close;
   $("#nDelete", o).onclick = () => { closeModal(); deleteNote(n); };
+  if (panel) showPanel(panel);
 }
 
 function deleteNote(n) {
@@ -1884,6 +1961,7 @@ function noteMenu(n, x, y) {
   popMenu(at, `
     <button data-m="open">${ICON.edit} Open</button>
     <button data-m="done">${ICON.check} ${isDone(n) ? "Mark not done" : "Mark done"}</button>
+    <button data-m="deps">${ICON.dep} Depends on…</button>
     <hr><div class="menu-label">Due ${due}</div>
     <div class="menu-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}${n.due ? `<button data-due="">clear</button>` : ""}</div>
     ${tags.length ? `<hr><div class="menu-label">Tags</div>
@@ -1905,6 +1983,7 @@ function noteMenu(n, x, y) {
     if (d.sec) { n.sectionId = d.sec === "-" ? null : d.sec; placeAtEnd(n); touch(); return; }
     switch (d.m) {
       case "open": openNote(n); break;
+      case "deps": openNote(n, { panel: "deps" }); break;
       case "done": toggleDone(n); break;
       case "delete": deleteNote(n); break;
     }

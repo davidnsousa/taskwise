@@ -7,6 +7,7 @@
 //   sections   same-named sections of every board side by side
 //   bookmarks  every board's bookmarks in one tree, with the notes linked to each
 //   list       one dense line per note, grouped by board
+//   graph      notes that depend on others, drawn left to right
 //
 // All of them use the filter bar like Board and Table do. Loaded after
 // app.js and uses its state and helpers (ws, ui, matches, cardHtml…).
@@ -38,7 +39,7 @@ function vCard(n, opts = {}) {
     ${whereHtml(n, opts)}
     <div class="title">${esc(n.title || "(untitled)")}</div>
     ${n.body ? `<div class="body">${esc(n.body)}</div>` : ""}
-    <div class="meta">${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
+    <div class="meta">${depBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
   </div>`;
 }
 // a one-line note row (List and Bookmarks views)
@@ -50,7 +51,7 @@ function rowHtml(n, { showBoard = false } = {}) {
     <span class="t"><span class="tt">${esc(n.title || "(untitled)")}</span>${first ? `<span class="sub">${esc(first)}</span>` : ""}</span>
     ${showBoard ? `<span class="where-chip"><span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "?")}</span>` : ""}
     ${s ? `<span class="sec-chip">${esc(s.name)}</span>` : ""}
-    <span class="rmeta">${tagPills(n)}${dueBadge(n)}${nl ? `<span class="nlinks" title="${nl} link${nl === 1 ? "" : "s"}">${ICON.link}${nl}</span>` : ""}</span>
+    <span class="rmeta">${depBadge(n)}${tagPills(n)}${dueBadge(n)}${nl ? `<span class="nlinks" title="${nl} link${nl === 1 ? "" : "s"}">${ICON.link}${nl}</span>` : ""}</span>
   </div>`;
 }
 
@@ -359,7 +360,129 @@ function renderList(main) {
   });
 }
 
+// ---------- 8. graph ----------
+// Every note that depends on another (or that another depends on), left to
+// right: what has to happen first is on the left. Each separate cluster is
+// drawn on its own; a pair shows when either note passes the filters.
+
+function renderGraph(main) {
+  const showDone = vopt("graphDone", true);
+  const live = n => !asleep(boardOf(n)) && (showDone || !isDone(n));
+  const all = [];
+  for (const n of ws.notes) if (live(n)) for (const d of depsOf(n)) if (live(d)) all.push([d, n]);
+  const edges = all.filter(([a, b]) => matches(a) || matches(b));
+
+  // clusters: notes joined by any dependency
+  const adj = new Map();
+  const link = (a, b) => { if (!adj.has(a)) adj.set(a, new Set()); adj.get(a).add(b); };
+  for (const [a, b] of edges) { link(a, b); link(b, a); }
+  const seen = new Set(), comps = [];
+  for (const start of [...adj.keys()].sort(byPlace)) {
+    if (seen.has(start)) continue;
+    const comp = [], stack = [start];
+    seen.add(start);
+    while (stack.length) {
+      const x = stack.pop(); comp.push(x);
+      for (const y of adj.get(x)) if (!seen.has(y)) { seen.add(y); stack.push(y); }
+    }
+    comps.push(comp);
+  }
+  comps.sort((a, b) => b.length - a.length);
+
+  const html = comps.map((comp, ci) => {
+    const inComp = new Set(comp);
+    const before = x => depsOf(x).filter(d => inComp.has(d) && edges.some(([a, b]) => a === d && b === x));
+    const after = x => comp.filter(y => before(y).includes(x));
+    // column = the longest chain of prerequisites in front of it
+    const col = new Map();
+    const colOf = (x, path = new Set()) => {
+      if (col.has(x)) return col.get(x);
+      if (path.has(x)) return 0;   // a loop from older data: stop there
+      path.add(x);
+      const c = Math.max(-1, ...before(x).map(d => colOf(d, path))) + 1;
+      path.delete(x);
+      col.set(x, c);
+      return c;
+    };
+    comp.forEach(x => colOf(x));
+    // a note nothing has to come before sits just left of the first note that needs it
+    for (const x of comp) if (!before(x).length && after(x).length) col.set(x, Math.min(...after(x).map(y => col.get(y))) - 1);
+    const cols = [];
+    for (const x of comp.sort(byPlace)) (cols[col.get(x)] ||= []).push(x);
+    // a few sweeps that put each note near the ones it's joined to, so fewer lines cross
+    const pos = new Map();
+    const index = () => cols.forEach(c => c.forEach((x, i) => pos.set(x, i)));
+    const avg = (xs, own) => xs.length ? xs.reduce((s, y) => s + pos.get(y), 0) / xs.length : own;
+    index();
+    for (let k = 0; k < 4; k++) {
+      for (let c = 1; c < cols.length; c++) { const w = new Map(cols[c].map(x => [x, avg(before(x), pos.get(x))])); cols[c].sort((a, b) => w.get(a) - w.get(b)); index(); }
+      for (let c = cols.length - 2; c >= 0; c--) { const w = new Map(cols[c].map(x => [x, avg(after(x), pos.get(x))])); cols[c].sort((a, b) => w.get(a) - w.get(b)); index(); }
+    }
+    const compEdges = edges.filter(([a]) => inComp.has(a));
+    return `<div class="gscroll"><div class="gcomp" data-comp="${ci}" data-edges="${compEdges.map(([a, b]) => `${a.id}>${b.id}`).join(" ")}">
+      <svg class="gedges"></svg>
+      ${cols.map(c => `<div class="gcol">${c.map(graphNode).join("")}</div>`).join("")}
+    </div></div>`;
+  }).join("");
+
+  const empty = !all.length
+    ? `<div class="lane-empty">No dependencies yet. Open a note and use <b>+ depends on</b>, or right-click a note › Depends on…</div>`
+    : `<div class="lane-empty">No dependencies match the filters.</div>`;
+  keepScroll(main, () => {
+    main.innerHTML = `<div class="vwrap graph">
+      ${vbar(`${optCheck("graphDone", true, "show done notes")}<span class="spacer"></span><span class="hint">prerequisites on the left · an arrow points to the note that waits</span>`)}
+      ${html || empty}</div>`;
+  });
+  drawGraphEdges(main);
+}
+
+function graphNode(n) {
+  const blocked = !isDone(n) && openDeps(n).length;
+  return `<div class="card gnode ${isDone(n) ? "is-done" : ""} ${blocked ? "blocked" : ""}" data-note="${n.id}">
+    <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
+    ${whereHtml(n)}
+    <div class="title">${esc(n.title || "(untitled)")}</div>
+    <div class="meta">${depBadge(n)}${dueBadge(n)}${tagPills(n)}</div>
+  </div>`;
+}
+
+// the arrows, drawn once the cards have their sizes
+function drawGraphEdges(main) {
+  for (const comp of $$(".gcomp", main)) {
+    const svg = $(".gedges", comp), box = comp.getBoundingClientRect();
+    svg.setAttribute("width", comp.scrollWidth);
+    svg.setAttribute("height", comp.scrollHeight);
+    const ci = comp.dataset.comp;
+    let paths = "";
+    for (const pair of comp.dataset.edges.split(" ").filter(Boolean)) {
+      const [aid, bid] = pair.split(">");
+      const a = $(`.gnode[data-note="${aid}"]`, comp)?.getBoundingClientRect();
+      const b = $(`.gnode[data-note="${bid}"]`, comp)?.getBoundingClientRect();
+      if (!a || !b) continue;
+      const x1 = a.right - box.left, y1 = a.top + a.height / 2 - box.top;
+      const x2 = b.left - box.left - 6, y2 = b.top + b.height / 2 - box.top;
+      const dx = Math.max(30, (x2 - x1) / 2);
+      const done = isDone(note(aid));
+      paths += `<path class="${done ? "done" : "open"}" data-from="${aid}" data-to="${bid}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}" marker-end="url(#ga-${done ? "d" : "o"}-${ci})"/>`;
+    }
+    svg.innerHTML = `<defs>
+      <marker id="ga-o-${ci}" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah open"/></marker>
+      <marker id="ga-d-${ci}" viewBox="0 0 10 10" refX="2" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah done"/></marker>
+    </defs>${paths}`;
+  }
+}
+window.addEventListener("resize", () => { if (ui.view === "graph") drawGraphEdges($("#main")); });
+document.fonts?.ready.then(() => { if (ui.view === "graph") drawGraphEdges($("#main")); });
+// hovering a note lights up its own arrows
+$("#main").addEventListener("mouseover", e => {
+  if (ui.view !== "graph") return;
+  const id = e.target.closest?.(".gnode")?.dataset.note || null;
+  $$(".gcomp", $("#main")).forEach(c => c.classList.toggle("focus", !!id && !!$(`.gnode[data-note="${id}"]`, c)));
+  $$(".gedges path[data-from]", $("#main")).forEach(p => p.classList.toggle("hl", !!id && (p.dataset.from === id || p.dataset.to === id)));
+});
+
 const VIEWS = {
+  graph: { render: renderGraph },
   agenda: { render: renderAgenda, drop: dropAgenda },
   focus: { render: renderFocus },
   tags: { render: renderTags, drop: dropTags },

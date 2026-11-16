@@ -45,6 +45,43 @@
   --shadow-lg: 0 4px 12px rgba(15,23,42,0.08), 0 28px 64px rgba(15,23,42,0.18);
 }
 
+/* the themes between the two ends, darkest first. Each builds on dark or
+   light (data-theme, which picks the shared details) and changes the
+   surfaces and text (data-shade). */
+:root[data-shade="dim"] {
+  --bg: #1c2027; --surface: #22272e; --col: #252a32; --card: #2c323b; --card-hover: #313842; --raised: #282e36;
+  --border: rgba(255,255,255,0.09); --border-strong: rgba(255,255,255,0.15); --line: rgba(255,255,255,0.065);
+  --text: #e8ebf0; --muted: #a6aebb; --faint: #79818e;
+  --btn: rgba(255,255,255,0.055); --btn-hover: rgba(255,255,255,0.09); --hover: rgba(255,255,255,0.045); --chip: rgba(255,255,255,0.07);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow: 0 2px 4px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.28);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.25), 0 28px 64px rgba(0,0,0,0.45);
+}
+:root[data-shade="dusk"] {
+  --bg: #2b313b; --surface: #323945; --col: #363d4a; --card: #3e4654; --card-hover: #444d5c; --raised: #3a4250;
+  --border: rgba(255,255,255,0.1); --border-strong: rgba(255,255,255,0.18); --line: rgba(255,255,255,0.075);
+  --text: #f0f2f6; --muted: #b8c0cc; --faint: #8d96a5;
+  --accent: #82b6ff; --accent-bg: rgba(130,182,255,0.15);
+  --btn: rgba(255,255,255,0.065); --btn-hover: rgba(255,255,255,0.1); --hover: rgba(255,255,255,0.05); --chip: rgba(255,255,255,0.08);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.22);
+  --shadow: 0 2px 4px rgba(0,0,0,0.16), 0 8px 24px rgba(0,0,0,0.22);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,0.2), 0 28px 64px rgba(0,0,0,0.4);
+}
+:root[data-shade="mist"] {
+  --bg: #d8dce2; --surface: #e5e8ed; --col: #cfd4db; --card: #eef0f3; --card-hover: #f3f5f7; --raised: #e2e6eb;
+  --border: rgba(15,23,42,0.12); --border-strong: rgba(15,23,42,0.2); --line: rgba(15,23,42,0.09);
+  --text: #13161b; --muted: #4c5361; --faint: #737a87;
+  --btn: #eef0f3; --btn-hover: #e5e8ed; --hover: rgba(15,23,42,0.05); --chip: rgba(15,23,42,0.07);
+}
+:root[data-shade="paper"] {
+  --bg: #eee9df; --surface: #f8f5ef; --col: #e7e1d5; --card: #fbf9f4; --card-hover: #fffdf9; --raised: #f4f0e8;
+  --border: rgba(60,45,20,0.12); --border-strong: rgba(60,45,20,0.2); --line: rgba(60,45,20,0.08);
+  --text: #29241c; --muted: #675e4f; --faint: #968c7a;
+  --btn: #fbf9f4; --btn-hover: #f3eee4; --hover: rgba(60,45,20,0.05); --chip: rgba(60,45,20,0.07);
+  --shadow-sm: 0 1px 2px rgba(60,45,20,0.07);
+  --shadow: 0 1px 3px rgba(60,45,20,0.07), 0 8px 24px rgba(60,45,20,0.09);
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
@@ -459,6 +496,9 @@ input[type=range] { accent-color: var(--accent-strong); }
 .menu > button:hover { background: var(--hover); }
 .menu > button.danger { color: var(--danger); background: none; }
 .menu > button.danger:hover { background: var(--danger-bg); }
+.menu > button .theme-sw { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--border-strong); flex-shrink: 0; }
+.menu > button.on { color: var(--text); font-weight: 550; }
+.menu > button.on svg { margin-left: auto; color: var(--accent); }
 .menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 2px; }
 .menu .colors { padding: 6px 10px; }
 .menu > button .ic { color: var(--faint); }

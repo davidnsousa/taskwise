@@ -35,7 +35,7 @@
   <button id="saveBtn">Use this folder</button>
 </div>
 <script>
-fetch("/api/settings").then(r => r.json()).then(s => { if (s.theme === "light") document.documentElement.dataset.theme = "light"; });
+fetch("/api/settings").then(r => r.json()).then(s => { if (["light", "paper", "mist"].includes(s.theme)) document.documentElement.dataset.theme = "light"; });
 fetch("/api/config").then(r => r.json()).then(cfg => {
   document.getElementById("dataDir").value = cfg.default || "~/taskwise";
 });

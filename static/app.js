@@ -138,10 +138,24 @@ function saveSettings() {
   clearTimeout(settingsTimer);
   settingsTimer = setTimeout(() => api("PUT", "/api/settings", settings), 400);
 }
+// darkest first; base is the end each one builds on (see app.css)
+const THEMES = [
+  { id: "dark", name: "Midnight", base: "dark", swatch: "#121418" },
+  { id: "dim", name: "Dim", base: "dark", swatch: "#22272e" },
+  { id: "dusk", name: "Dusk", base: "dark", swatch: "#3e4654" },
+  { id: "mist", name: "Mist", base: "light", swatch: "#d8dce2" },
+  { id: "paper", name: "Paper", base: "light", swatch: "#f4f0e8" },
+  { id: "light", name: "Light", base: "light", swatch: "#ffffff" },
+];
+const themeOf = id => THEMES.find(t => t.id === id) || THEMES[0];
+
 function applyLook() {
-  document.documentElement.dataset.theme = settings.theme === "light" ? "light" : "dark";
+  const th = themeOf(settings.theme);
+  document.documentElement.dataset.theme = th.base;
+  if (th.id === th.base) delete document.documentElement.dataset.shade;
+  else document.documentElement.dataset.shade = th.id;
   const tb = $("#themeBtn");
-  if (tb) { tb.innerHTML = settings.theme === "light" ? ICON.moon : ICON.sun; tb.title = settings.theme === "light" ? "Switch to dark mode" : "Switch to light mode"; }
+  if (tb) { tb.innerHTML = th.base === "light" ? ICON.sun : ICON.moon; tb.title = `Theme: ${th.name}`; }
   document.documentElement.style.setProperty("--ui-scale", settings.scale || 1);
   document.documentElement.style.setProperty("--col-min", `${settings.colMin || 280}px`);
   document.body.classList.toggle("sidebar-open", !!settings.sidebar);
@@ -2147,17 +2161,23 @@ function renderTable(main) {
 // ---------- settings ----------
 
 $("#settingsBtn").onclick = openSettings;
-$("#themeBtn").onclick = () => {
-  settings.theme = settings.theme === "light" ? "dark" : "light";
+const setTheme = id => {
+  settings.theme = id;
   applyLook(); saveSettings();
-  const pick = $("#sTheme"); if (pick) pick.value = settings.theme;
+  const pick = $("#sTheme"); if (pick) pick.value = id;
+};
+$("#themeBtn").onclick = e => {
+  const cur = themeOf(settings.theme).id;
+  popMenu(e.currentTarget, `<div class="menu-label">Theme, dark to light</div>`
+    + THEMES.map(t => `<button data-theme-id="${t.id}" class="${t.id === cur ? "on" : ""}"><span class="theme-sw" style="background:${t.swatch}"></span>${t.name}${t.id === cur ? ICON.check : ""}</button>`).join(""),
+    d => { if (d.themeId) setTheme(d.themeId); });
 };
 
 async function openSettings() {
   const { data: cfg } = await api("GET", "/api/config");
   const o = modal(`<h3>Settings</h3>
     <div class="row">
-      <label class="f">Theme<select id="sTheme"><option value="dark">Dark</option><option value="light">Light</option></select></label>
+      <label class="f">Theme<select id="sTheme">${THEMES.map(t => `<option value="${t.id}">${t.name}</option>`).join("")}</select></label>
       <label class="f" style="flex:1">Text size <input type="range" id="sScale" min="0.85" max="1.5" step="0.05"></label>
       <label class="f" style="flex:1" title="Boards are never narrower than this; they stretch to fill the row and wrap onto a new row when they don't fit">Board width (minimum) <input type="range" id="sColMin" min="200" max="480" step="10"></label>
     </div>
@@ -2170,9 +2190,9 @@ async function openSettings() {
     <div class="section-f"><span class="lbl">Tags</span><div class="tag-manage" id="sTags"></div>
       <div class="row"><input type="text" id="sNewTag" placeholder="new tag" style="flex:1"><button id="sAddTag">Add tag</button></div></div>
     <div class="foot"><div class="spacer"></div><button class="primary" id="sClose">Close</button></div>`);
-  $("#sTheme", o).value = settings.theme === "light" ? "light" : "dark";
+  $("#sTheme", o).value = themeOf(settings.theme).id;
   $("#sScale", o).value = settings.scale || 1;
-  $("#sTheme", o).onchange = e => { settings.theme = e.target.value; applyLook(); saveSettings(); };
+  $("#sTheme", o).onchange = e => setTheme(e.target.value);
   $("#sScale", o).oninput = e => { settings.scale = +e.target.value; applyLook(); saveSettings(); };
   $("#sColMin", o).value = settings.colMin || 280;
   $("#sColMin", o).oninput = e => { settings.colMin = +e.target.value; applyLook(); saveSettings(); };

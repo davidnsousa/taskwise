@@ -38,13 +38,13 @@ function vCard(n, opts = {}) {
     <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
     ${whereHtml(n, opts)}
     <div class="title">${esc(n.title || "(untitled)")}</div>
-    ${n.body ? `<div class="body">${esc(n.body)}</div>` : ""}
+    ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
     <div class="meta">${depBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
   </div>`;
 }
 // a one-line note row (List and Bookmarks views)
 function rowHtml(n, { showBoard = false } = {}) {
-  const b = boardOf(n), s = section(b, n.sectionId), first = (n.body || "").split("\n")[0];
+  const b = boardOf(n), s = section(b, n.sectionId), first = MD.plain((n.body || "").trim().split("\n")[0]);
   const nl = (n.links || []).filter(id => bookmark(id)).length;
   return `<div class="crow ${isDone(n) ? "is-done" : ""}" data-note="${n.id}">
     <button class="check" data-vact="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
@@ -62,7 +62,7 @@ function laneHtml({ key, title, color, notes, body, drop, foldKey, foldDefault =
     <div class="lane-head" ${foldKey ? `data-fold="${esc(foldKey)}" data-fold-default="${foldDefault ? 1 : 0}"` : ""}>
       ${foldKey ? `<span class="arrow">${ICON.chevron}</span>` : ""}<span class="dot"></span><h2>${esc(title)}</h2><span class="n">${notes.length}</span>${extra}
     </div>
-    ${folded ? "" : `<div class="lane-body">${body ?? notes.map(n => vCard(n)).join("")}${!notes.length && !body ? `<div class="lane-empty">${hint || "Nothing here"}</div>` : ""}</div>`}
+    ${folded ? "" : `<div class="lane-body">${body ?? sortNotes(notes).map(n => vCard(n)).join("")}${!notes.length && !body ? `<div class="lane-empty">${hint || "Nothing here"}</div>` : ""}</div>`}
   </section>`;
 }
 
@@ -297,7 +297,7 @@ function renderBookmarks(main) {
         ${linked.length ? `<span class="lc" title="${linked.length} note(s) linked">${linked.length}</span>` : ""}
         <button class="ghost icon" data-vact="edit-bm" data-board="${b.id}" data-bm="${x.id}" title="Edit">${ICON.edit}</button>
       </div>
-      ${showNotes && list.length ? `<div class="bmv-notes">${list.map(n => rowHtml(n, { showBoard: n.boardId !== b.id })).join("")}</div>` : ""}
+      ${showNotes && list.length ? `<div class="bmv-notes">${sortNotes(list).map(n => rowHtml(n, { showBoard: n.boardId !== b.id })).join("")}</div>` : ""}
     </div>`;
   };
   const tree = (b, parentId, depth) => {
@@ -352,7 +352,7 @@ function renderList(main) {
       <div class="list-head" data-fold="${esc(fk)}"><span class="arrow">${ICON.chevron}</span><span class="dot"></span><h2>${esc(b.name)}</h2>
         <span class="hint">${esc(group(b.groupId)?.name || "")}</span>${hiddenB(b) ? `<span class="flag" title="hidden board">${ICON.eyeOff}</span>` : ""}
         <span class="n">${list.length}</span></div>
-      ${folded ? "" : `<div class="list-rows">${list.map(n => rowHtml(n)).join("")}</div>`}
+      ${folded ? "" : `<div class="list-rows">${sortNotes(list).map(n => rowHtml(n)).join("")}</div>`}
     </section>`;
   }).join("");
   keepScroll(main, () => {

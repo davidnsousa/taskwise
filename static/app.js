@@ -34,6 +34,7 @@ const ICON = {
   eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>', 14),
   eyeOff: svg('<path d="M9.9 4.2A10 10 0 0 1 12 4c6.5 0 10 8 10 8a17 17 0 0 1-2.2 3.2M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M2 2l20 20"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>', 14),
   moon: svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>', 14),
+  sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>', 14),
   file: svg('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>', 14),
   folder: svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', 14),
   dep: svg('<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H13a3 3 0 0 1 3 3v6.5"/><path d="m13 13 3 3 3-3"/>', 12),
@@ -45,7 +46,7 @@ const ICON = {
 let ws = { groups: [], boards: [], notes: [], tags: [] };   // the whole board.json
 let rev = null;
 let settings = {};
-const DEFAULT_UI = { view: "board", q: "", tags: {}, due: "all", board: "", section: "", bookmark: null, sort: { key: "due", dir: 1 }, vopt: {} };
+const DEFAULT_UI = { view: "board", q: "", tags: {}, due: "all", board: "", section: "", bookmark: null, sort: { key: "due", dir: 1 }, order: "manual", vopt: {} };
 let ui = structuredClone(DEFAULT_UI);
 
 // ---------- server ----------
@@ -133,12 +134,14 @@ function setStatus(text, err = false) {
 
 let settingsTimer = null;
 function saveSettings() {
-  settings.ui = { view: ui.view, q: ui.q, tags: ui.tags, due: ui.due, board: ui.board, section: ui.section, sort: ui.sort, vopt: ui.vopt };
+  settings.ui = { view: ui.view, q: ui.q, tags: ui.tags, due: ui.due, board: ui.board, section: ui.section, sort: ui.sort, order: ui.order, vopt: ui.vopt };
   clearTimeout(settingsTimer);
   settingsTimer = setTimeout(() => api("PUT", "/api/settings", settings), 400);
 }
 function applyLook() {
   document.documentElement.dataset.theme = settings.theme === "light" ? "light" : "dark";
+  const tb = $("#themeBtn");
+  if (tb) { tb.innerHTML = settings.theme === "light" ? ICON.moon : ICON.sun; tb.title = settings.theme === "light" ? "Switch to dark mode" : "Switch to light mode"; }
   document.documentElement.style.setProperty("--ui-scale", settings.scale || 1);
   document.documentElement.style.setProperty("--col-min", `${settings.colMin || 280}px`);
   document.body.classList.toggle("sidebar-open", !!settings.sidebar);
@@ -358,6 +361,23 @@ function matches(n, { archive = false } = {}) {
 // sections with the same name on different boards belong together in filters and sorting
 const sectionName = n => section(boardOf(n), n.sectionId)?.name || "General";
 const sectionKey = name => name.trim().toLowerCase();
+// the order picked in the filter bar, for cards and rows on every view but
+// Table (which sorts by its columns). "manual" is the order you drag them into;
+// the others keep open notes before done ones.
+const SORTS = { manual: "Manual order", due: "Due date", title: "Title A–Z", newest: "Newest first", oldest: "Oldest first", edited: "Recently edited" };
+const SORT_CMP = {
+  due: (a, b) => (a.due?.target || "9999").localeCompare(b.due?.target || "9999"),
+  title: (a, b) => (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base", numeric: true }),
+  newest: (a, b) => (b.created || 0) - (a.created || 0),
+  oldest: (a, b) => (a.created || 0) - (b.created || 0),
+  edited: (a, b) => (b.updated || 0) - (a.updated || 0),
+};
+function sortNotes(list) {
+  const cmp = SORT_CMP[ui.order];
+  if (!cmp) return list;
+  return list.map((n, i) => ({ n, i })).sort((a, b) => isDone(a.n) - isDone(b.n) || cmp(a.n, b.n) || a.i - b.i).map(x => x.n);
+}
+
 const filtersActive = () => ui.q || ui.due !== "all" || ui.board || ui.section || ui.bookmark || Object.keys(ui.tags).length;
 
 function boardOptions(selected, { includeAll = false, allowAsleep = false } = {}) {
@@ -374,6 +394,8 @@ function boardOptions(selected, { includeAll = false, allowAsleep = false } = {}
 function renderFilters() {
   $("#search").value = ui.q;
   $("#dueFilter").value = ui.due;
+  $("#sortPick").innerHTML = Object.entries(SORTS).map(([k, label]) => `<option value="${k}">Sort: ${label}</option>`).join("");
+  $("#sortPick").value = SORTS[ui.order] ? ui.order : "manual";
   if (ui.board && (!boardById(ui.board) || asleep(boardById(ui.board)))) ui.board = "";
   $("#boardFilter").innerHTML = boardOptions(ui.board, { includeAll: true });
   $("#boardFilter").value = ui.board;
@@ -425,6 +447,7 @@ function renderCounts() {
 $("#search").addEventListener("input", e => { ui.q = e.target.value; saveSettings(); renderMain(); renderCounts(); });
 $("#dueFilter").onchange = e => { ui.due = e.target.value; saveSettings(); render(); };
 $("#boardFilter").onchange = e => { ui.board = e.target.value; saveSettings(); render(); };
+$("#sortPick").onchange = e => { ui.order = e.target.value; saveSettings(); render(); };
 $("#sectionFilter").onchange = e => { ui.section = e.target.value; saveSettings(); render(); };
 $("#tagFilters").onclick = e => {
   const b = e.target.closest(".ftag"); if (!b) return;
@@ -552,7 +575,7 @@ function cardHtml(n) {
   return `<div class="card ${isDone(n) ? "is-done" : ""}" draggable="true" data-note="${n.id}">
     <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
     <div class="title">${esc(n.title || "(untitled)")}</div>
-    ${n.body ? `<div class="body">${esc(n.body)}</div>` : ""}
+    ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
     <div class="meta">${depBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
   </div>`;
 }
@@ -595,7 +618,7 @@ function columnHtml(b) {
   const shown = notes.filter(matches);
   const arch = mine.filter(inArchive), archShown = arch.filter(n => matches(n, { archive: true }));
   const bms = b.bookmarks || [];
-  const listFor = secId => shown.filter(n => (n.sectionId || null) === secId);
+  const listFor = secId => sortNotes(shown.filter(n => (n.sectionId || null) === secId));
   const flags = `${b.hidden ? `<span class="flag" title="hidden">${ICON.eyeOff}</span>` : ""}`;
   return `<section class="column ${b.collapsed ? "collapsed" : ""}" data-board="${b.id}" style="--pc:${b.color || "var(--border)"}">
     <div class="col-head" title="drag to move the board · double-click the name to rename">
@@ -633,7 +656,7 @@ function columnHtml(b) {
           <span class="arrow">${ICON.chevron}</span>${ICON.archive}<span class="t">Archive</span>
           ${arch.length ? `<span class="n">${archShown.length === arch.length ? arch.length : `${archShown.length}/${arch.length}`}</span>` : ""}
         </div>
-        <div class="notes" data-archive="1">${archShown.map(cardHtml).join("") || `<div class="arch-empty">${arch.length ? "Nothing here matches the filters." : "Done notes land here. Drop a card here, or right-click it › Archive."}</div>`}</div>
+        <div class="notes" data-archive="1">${sortNotes(archShown).map(cardHtml).join("") || `<div class="arch-empty">${arch.length ? "Nothing here matches the filters." : "Done notes land here. Drop a card here, or right-click it › Archive."}</div>`}</div>
       </div>
     </div>
   </section>`;
@@ -1632,8 +1655,31 @@ function editBookmark(b, id, folderId = null) {
 const DUE_CHIPS = ["today", "tomorrow", "this week", "next week", "2 weeks", "this month", "next month"];
 
 // a note opened from the board or a view, ready to edit: changes apply as you make them
+// a note's text as one Markdown source, its title as the first-line heading
+const noteSource = n => `# ${n.title || ""}${(n.body || "").trim() ? `\n\n${n.body}` : ""}`;
+// and back: the first line (its #s dropped) is the title, the rest the body
+function parseSource(text) {
+  const lines = text.split("\n");
+  const title = lines[0].replace(/^\s*#+\s*/, "").trim();
+  const rest = lines.slice(1);
+  while (rest.length && !rest[0].trim()) rest.shift();
+  return { title, body: rest.join("\n") };
+}
+
+// tick a "- [ ]" box on a card or row without opening the note
+document.addEventListener("click", e => {
+  const box = e.target.closest("input.md-task");
+  if (!box || box.closest(".overlay")) return;
+  e.preventDefault(); e.stopPropagation();
+  const n = note(box.closest("[data-note]")?.dataset.note); if (!n) return;
+  n.body = MD.toggleTask(n.body, +box.dataset.line);
+  n.updated = nowSec();
+  save(); render();
+}, true);
+
 function openNote(n, { panel = null, fresh = false } = {}) {
   if (!n) return;
+  n.body ||= "";
   const sectionOptions = () => {
     const b = boardOf(n);
     return `<option value="">— none (top of the board)</option>` + (b?.sections || []).map(s => `<option value="${s.id}" ${s.id === n.sectionId ? "selected" : ""}>${esc(s.name)}</option>`).join("");
@@ -1646,8 +1692,11 @@ function openNote(n, { panel = null, fresh = false } = {}) {
       <label class="f" style="flex:1.3">Board<select id="nBoard">${boardOptions(n.boardId, { allowAsleep: false })}</select></label>
       <label class="f" style="flex:1">Section<select id="nSection">${sectionOptions()}</select></label>
     </div></div>
-    <input type="text" class="title-in ${isDone(n) ? "is-done" : ""}" id="nTitle" value="${esc(n.title)}" placeholder="Title">
-    <textarea class="body-in ne-body" id="nBody" placeholder="Add details…">${esc(n.body)}</textarea>
+    <textarea class="ne-src" id="nSrc" placeholder="# Title" spellcheck="true"></textarea>
+    <div class="ne-preview ${settings.previewClosed ? "closed" : ""}" id="nPreview">
+      <button class="ne-preview-head" id="nPreviewHead" title="Show or hide the preview"><span class="arrow">${ICON.chevron}</span>Preview</button>
+      <div class="ne-view md" id="nView"></div>
+    </div>
     <div class="nv-meta ne-meta" id="nMeta"></div>
     <div class="ne-panel" data-panel="tags" hidden><div class="tag-pick" id="nTags"></div></div>
     <div class="ne-panel" data-panel="due" hidden>
@@ -1715,22 +1764,41 @@ function openNote(n, { panel = null, fresh = false } = {}) {
     $("#nDone", o).innerHTML = ICON.check;
     $("#nDone", o).title = isDone(n) ? "not done" : "mark done";
     $(".modal", o).classList.toggle("is-done", isDone(n));
-    $("#nTitle", o).classList.toggle("is-done", isDone(n));
+    $("#nView", o).classList.toggle("is-done", isDone(n));
   };
   $("#nDone", o).onclick = () => { toggleDone(n); renderDone(); renderMeta(); renderTags(); renderWhere(); };
   o._refresh = () => { renderMeta(); renderLinkChips(); renderLinks(); renderDeps(); };
   renderWhere(); renderMeta(); renderLinkChips(); renderDone();
 
-  // the body grows with its text, up to the same height the view allows
-  const bodyIn = $("#nBody", o);
-  const fit = () => { bodyIn.style.height = "auto"; bodyIn.style.height = `${bodyIn.scrollHeight + 2}px`; };
-  requestAnimationFrame(fit);
-
   const touch = () => { n.updated = nowSec(); save(); };
-  const titleIn = $("#nTitle", o);
-  if (!n.title) titleIn.focus();
-  titleIn.oninput = () => { n.title = titleIn.value; touch(); };
-  bodyIn.oninput = () => { n.body = bodyIn.value; fit(); touch(); };
+
+  // the text: one Markdown source whose first line is the "# title", with
+  // the rendered note under it in a preview that folds away
+  const view = $("#nView", o), src = $("#nSrc", o);
+  const renderView = () => {
+    view.innerHTML = `<h1 class="nv-title">${esc(n.title || "(untitled)")}</h1>${MD.render(n.body, { tasks: true })}`;
+  };
+  // the source grows with its text, up to the height the panel allows
+  const fit = () => { src.style.height = "auto"; src.style.height = `${src.scrollHeight + 2}px`; };
+  src.value = noteSource(n);
+  requestAnimationFrame(fit);
+  renderView();
+  if (fresh) { src.focus(); src.setSelectionRange(src.value.length, src.value.length); }
+  src.oninput = () => { Object.assign(n, parseSource(src.value)); fit(); renderView(); touch(); };
+  $("#nPreviewHead", o).onclick = () => {
+    settings.previewClosed = !settings.previewClosed;
+    $("#nPreview", o).classList.toggle("closed", settings.previewClosed);
+    saveSettings();
+  };
+  view.addEventListener("click", e => {
+    const box = e.target.closest("input.md-task"); if (!box) return;
+    e.preventDefault();
+    n.body = MD.toggleTask(n.body, +box.dataset.line);
+    const at = src.selectionStart;
+    src.value = noteSource(n);
+    src.setSelectionRange(at, at);
+    touch(); renderView();
+  });
   $("#nBoard", o).onchange = e => {
     n.boardId = e.target.value;
     n.sectionId = null;
@@ -1908,7 +1976,7 @@ function openNote(n, { panel = null, fresh = false } = {}) {
     } else if (go) { render(); openNote(note(go.dataset.goto)); }
   });
 
-  const isEmpty = () => !n.title.trim() && !n.body.trim() && !(n.tags || []).length && !n.due && !(n.links || []).length && !(n.deps || []).length;
+  const isEmpty = () => !n.title.trim() && !(n.body || "").trim() && !(n.tags || []).length && !n.due && !(n.links || []).length && !(n.deps || []).length;
   o._close = () => {
     closeModal();
     if (fresh && isEmpty() && ws.notes.includes(n)) { ws.notes = ws.notes.filter(x => x !== n); save(); }
@@ -2045,7 +2113,7 @@ function renderTable(main) {
       const b = boardOf(n), g = group(b?.groupId), s = section(b, n.sectionId);
       return `<tr class="row ${isDone(n) ? "is-done" : ""}" data-note="${n.id}">
         <td><button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button></td>
-        <td class="t"><div>${esc(n.title || "(untitled)")}</div>${n.body ? `<div class="sub">${esc(n.body.split("\n")[0])}</div>` : ""}</td>
+        <td class="t"><div>${esc(n.title || "(untitled)")}</div>${n.body ? `<div class="sub">${esc(MD.plain(n.body.trim().split("\n")[0]))}</div>` : ""}</td>
         <td><span class="sec-cell" style="--pc:${b?.color || "var(--border)"}"><b>${esc(s ? s.name : "General")}</b> — ${esc(b?.name || "?")}</span></td>
         <td><div class="proj" style="--pc:${b?.color || "var(--border)"}"><i></i>${esc(b?.name || "?")}${hiddenB(b) ? ` <span class="flag" title="hidden board">${ICON.eyeOff}</span>` : ""}</div>
           <div class="sub">${esc(g?.name || "")}</div></td>
@@ -2061,6 +2129,11 @@ function renderTable(main) {
 // ---------- settings ----------
 
 $("#settingsBtn").onclick = openSettings;
+$("#themeBtn").onclick = () => {
+  settings.theme = settings.theme === "light" ? "dark" : "light";
+  applyLook(); saveSettings();
+  const pick = $("#sTheme"); if (pick) pick.value = settings.theme;
+};
 
 async function openSettings() {
   const { data: cfg } = await api("GET", "/api/config");

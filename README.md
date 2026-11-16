@@ -54,6 +54,10 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 
 **Notes**
 - Add with the + on any section; the new note opens straight in the note panel
+- Notes are Markdown with a `# Title` first line, rendered on the cards, with tickable `- [ ]` checkboxes
+- The note panel shows the Markdown with a rendered preview under it that folds away
+- Sort the notes from the filter bar: manual, due date, title, newest, oldest or recently edited
+- Light / dark switch next to Settings
 - Due dates in plain words, shown relative to today
 - Filters by search, due date, board, section and tag
 - Notes can depend on other notes; the Graph view draws who waits on whom

@@ -310,9 +310,10 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
 .card.is-done .body, .card.is-done .meta { opacity: 0.55; }
 .card .title { font-weight: 600; line-height: 1.38; padding-right: 26px; word-break: break-word; font-size: calc(13.5px * var(--ui-scale)); letter-spacing: -0.01em; }
 .card .body {
-  font-size: calc(12.5px * var(--ui-scale)); color: var(--muted); margin-top: 4px; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
-  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+  font-size: calc(12.5px * var(--ui-scale)); color: var(--muted); margin-top: 4px; line-height: 1.55; word-break: break-word;
+  max-height: 14em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 calc(100% - 1.6em), transparent); mask-image: linear-gradient(#000 calc(100% - 1.6em), transparent);
 }
+.card .body:not(:has(> :nth-child(6))) { -webkit-mask-image: none; mask-image: none; }
 .card .meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; align-items: center; }
 .card .meta:empty { display: none; }
 .check, :root[data-theme="light"] .check {
@@ -412,12 +413,6 @@ table.notes-table {
 .modal label.f { display: flex; flex-direction: column; gap: 6px; font-size: calc(12px * var(--ui-scale)); color: var(--muted); font-weight: 550; }
 .modal input[type=text], .modal input[type=url], .modal textarea, .modal select { width: 100%; }
 .modal label.f input, .modal label.f textarea, .modal label.f select { font-weight: 400; color: var(--text); font-size: calc(13.5px * var(--ui-scale)); }
-.modal .title-in {
-  height: 38px; font-size: calc(20px * var(--ui-scale)); font-weight: 650; background: none !important; border-color: transparent; padding: 0 8px;
-  margin: -4px -8px 0; width: calc(100% + 16px) !important; letter-spacing: -0.02em;
-}
-.modal .title-in:hover { border-color: var(--border); }
-.modal textarea.body-in { min-height: 150px; resize: vertical; line-height: 1.6; }
 .modal .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .modal .foot { display: flex; gap: 8px; align-items: center; margin: 2px -26px -24px; padding: 14px 26px; border-top: 1px solid var(--border); background: var(--raised); border-radius: 0 0 18px 18px; }
 :root:not([data-theme="light"]) .modal .foot { background: rgba(255,255,255,0.015); }
@@ -710,8 +705,6 @@ body.app-offline #offline { display: flex; }
 .nv-links .lnk-more { opacity: 1; }
 
 /* the editor: the view panel with its parts made editable */
-.modal.note-edit .title-in { height: auto; line-height: 1.3; padding: 2px 8px; margin-top: -6px; }
-.modal.note-edit .title-in.is-done { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
 .modal button.ne-where, :root[data-theme="light"] .modal button.ne-where {
   display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; height: 24px; padding: 0 6px; margin: -2px -6px;
   background: none; border: none; box-shadow: none; border-radius: 6px;
@@ -722,13 +715,46 @@ body.app-offline #offline { display: flex; }
 .modal button.ne-where:hover, .modal button.ne-where.on { background: var(--hover); color: var(--muted); }
 .modal button.ne-where:hover svg, .modal button.ne-where.on svg { opacity: 1; }
 .modal button.ne-where.on svg { transform: rotate(90deg); }
-.modal textarea.ne-body, :root[data-theme="light"] .modal textarea.ne-body {
-  min-height: calc(3 * 1.6em + 12px); max-height: 55vh; resize: none; overflow: auto;
-  font-size: calc(14px * var(--ui-scale)); line-height: 1.6; padding: 6px 8px; margin: -6px -8px; width: calc(100% + 16px) !important;
-  background: none; border-color: transparent; box-shadow: none;
+/* the text: rendered (view mode) or its Markdown source (edit mode) */
+.modal .ne-preview { border: 1px solid var(--border); border-radius: 10px; margin: 0 -8px; }
+.modal button.ne-preview-head, :root[data-theme="light"] .modal button.ne-preview-head {
+  display: flex; align-items: center; gap: 6px; width: 100%; height: 30px; padding: 0 10px; background: none; border: none; box-shadow: none; border-radius: 10px;
+  font-size: calc(12px * var(--ui-scale)); font-weight: 550; color: var(--faint); justify-content: flex-start;
 }
-.modal textarea.ne-body:hover { border-color: var(--border); }
-.modal textarea.ne-body:focus { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px var(--accent-bg); }
+.modal button.ne-preview-head:hover { color: var(--muted); background: var(--hover); }
+.modal .ne-preview-head .arrow { display: inline-flex; transform: rotate(90deg); transition: transform 0.18s; }
+.modal .ne-preview.closed .ne-preview-head .arrow { transform: none; }
+.modal .ne-preview.closed .ne-view { display: none; }
+.modal .ne-view { max-height: 40vh; overflow: auto; font-size: calc(14px * var(--ui-scale)); line-height: 1.6; padding: 2px 12px 12px; }
+.modal .ne-view h1.nv-title { font-size: calc(19px * var(--ui-scale)); font-weight: 650; letter-spacing: -0.015em; line-height: 1.3; margin: 0 0 6px; }
+.modal .ne-view.is-done h1.nv-title { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--muted); }
+.modal textarea.ne-src, :root[data-theme="light"] .modal textarea.ne-src {
+  min-height: calc(6 * 1.6em + 12px); max-height: 40vh; resize: none; overflow: auto;
+  font-family: var(--mono, ui-monospace, "JetBrains Mono", Menlo, monospace); font-size: calc(13px * var(--ui-scale)); line-height: 1.6;
+  padding: 6px 8px; margin: -6px -8px; width: calc(100% + 16px) !important;
+  background: none; border-color: var(--border); box-shadow: none;
+}
+.modal textarea.ne-src:focus { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px var(--accent-bg); }
+
+/* rendered Markdown, on cards and in the note panel */
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md blockquote, .md pre { margin: 0 0 0.55em; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { margin: 0.8em 0 0.35em; line-height: 1.3; color: var(--text); font-weight: 650; }
+.md h1 { font-size: 1.3em; } .md h2 { font-size: 1.18em; } .md h3 { font-size: 1.06em; } .md h4, .md h5, .md h6 { font-size: 1em; }
+.md ul, .md ol { padding-left: 1.4em; }
+.md li > ul, .md li > ol { margin: 0.1em 0 0.15em; }
+.md li.task { list-style: none; margin-left: -1.3em; display: block; }
+.md li.task > input.md-task { width: 13px; height: 13px; margin: 0 0.45em 0 0; vertical-align: -2px; accent-color: var(--accent); cursor: pointer; }
+.md li.task.checked > span { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--faint); }
+.md a { color: var(--accent); text-decoration: none; }
+.md a:hover { text-decoration: underline; }
+.md code { font-family: var(--mono, ui-monospace, "JetBrains Mono", Menlo, monospace); font-size: 0.9em; background: var(--chip); border-radius: 4px; padding: 0.05em 0.35em; }
+.md pre { background: var(--chip); border-radius: 8px; padding: 0.6em 0.8em; overflow: auto; }
+.md pre code { background: none; padding: 0; }
+.md blockquote { border-left: 3px solid var(--border-strong); padding-left: 0.8em; color: var(--muted); }
+.md hr { border: none; border-top: 1px solid var(--border); margin: 0.8em 0; }
+.card .md h1, .card .md h2, .card .md h3 { font-size: 1.05em; margin: 0.5em 0 0.2em; }
 .ne-meta button.ne-chip, :root[data-theme="light"] .ne-meta button.ne-chip { border: none; box-shadow: none; cursor: pointer; }
 .ne-meta button.pill.ne-chip:hover { background: color-mix(in srgb, var(--tc) 22%, transparent); }
 .ne-meta button.due.ne-chip:hover { filter: brightness(1.1); }

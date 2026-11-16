@@ -28,6 +28,8 @@ const ICON = {
   copy: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>', 14),
   check: svg('<path d="M20 6 9 17l-5-5"/>', 12),
   clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 12),
+  sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>', 14),
+  flame: svg('<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 0 1-10 0c0-2.4 1.3-3.9 2.5-5 .3 1.6 1 2.6 2 3 0-3 .2-5.6.5-8z"/>', 14),
   tasks: svg('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/>', 12),
   link: svg('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>', 12),
   grip: svg('<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>', 14),
@@ -65,6 +67,8 @@ async function loadBoard() {
   ws = data.board;
   rev = data.rev;
   ws.groups ||= []; ws.boards ||= []; ws.notes ||= []; ws.tags ||= [];
+  // notes done before taskwise kept doneAt: done "long ago", so they don't count as today
+  for (const n of ws.notes) if (isDone(n) && !n.doneAt) n.doneAt = 1;
   let changed = false;
   // boards from the first version used pastel defaults; swap those for the
   // current palette (colours you picked yourself are left alone)
@@ -91,6 +95,7 @@ async function loadBoard() {
 let saveTimer = null, saving = false, dirty = false;
 function save() {
   sinkDone();
+  stampDone();
   dirty = true;
   setStatus("unsaved…");
   clearTimeout(saveTimer);
@@ -505,7 +510,65 @@ async function pickPaths(kind, multiple) {
 
 // ---------- render ----------
 
-function render() { renderFilters(); renderSidebar(); renderMain(); }
+function render() { renderFilters(); renderSidebar(); renderMain(); renderToday(); }
+
+// ---------- today's progress (top right) ----------
+// n.doneAt is when a note got its done tag, set here at save time so every way
+// of marking done counts; ws.activity[day][noteId] is how many boxes were
+// ticked on that note that day (unticking takes one off). Kept two weeks.
+const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const daysAgo = k => { const d = new Date(); d.setDate(d.getDate() - k); return dayKey(d); };
+function stampDone() {
+  for (const n of ws.notes) {
+    if (isDone(n)) n.doneAt ||= nowSec();
+    else if (n.doneAt) delete n.doneAt;
+  }
+}
+function logTick(n, before, after) {
+  const was = MD.taskCount(before).done, now = MD.taskCount(after).done;
+  if (was === now) return;
+  const act = ws.activity ||= {}, day = act[dayKey()] ||= {};
+  day[n.id] = Math.max(0, (day[n.id] || 0) + now - was);
+  if (!day[n.id]) delete day[n.id];
+  const keep = daysAgo(14);
+  for (const k of Object.keys(act)) if (k < keep || !Object.keys(act[k]).length) delete act[k];
+}
+// what got done on a day: done notes and ticked boxes
+function dayStats(key) {
+  const done = ws.notes.filter(n => isDone(n) && n.doneAt && dayKey(new Date(n.doneAt * 1000)) === key);
+  const ticks = Object.entries(ws.activity?.[key] || {}).map(([id, c]) => ({ n: note(id), c })).filter(x => x.n && x.c > 0);
+  return { done, ticks, ticked: ticks.reduce((s, x) => s + x.c, 0) };
+}
+function renderToday() {
+  const el = $("#todayBtn"); if (!el) return;
+  const t = dayStats(dayKey()), score = t.done.length + t.ticked;
+  const parts = [];
+  if (t.done.length) parts.push(`${t.done.length} done`);
+  if (t.ticked) parts.push(`${t.ticked} ticked`);
+  // a good day: more than any of the six before it, and at least a few things
+  let best = score >= 3;
+  for (let k = 1; best && k < 7; k++) { const p = dayStats(daysAgo(k)); if (p.done.length + p.ticked >= score) best = false; }
+  el.classList.toggle("some", score > 0);
+  el.classList.toggle("best", best);
+  // the long label, and a short one for narrow windows (see app.css)
+  el.innerHTML = `${best ? ICON.flame : score ? ICON.check : ICON.sun}<span class="tl">${score ? parts.join(" · ") : "Today: nothing yet"}</span>${score ? `<span class="ts">${score}</span>` : ""}`;
+  el.title = score ? `Today: ${parts.join(", ")}${best ? ", your best day this week" : ""}` : "Notes you mark done and boxes you tick today show up here";
+}
+$("#todayBtn").onclick = e => {
+  const t = dayStats(dayKey());
+  const row = (n, extra) => `<button data-goto="${n.id}">${isDone(n) ? ICON.check : ICON.tasks}<span class="today-t">${esc(n.title || "(untitled)")}</span>${extra ? `<span class="today-x">${extra}</span>` : ""}</button>`;
+  const doneIds = new Set(t.done.map(n => n.id));
+  const rows = [...t.done.map(n => { const c = t.ticks.find(x => x.n.id === n.id)?.c; return row(n, c ? `${c} ticked` : ""); }),
+    ...t.ticks.filter(x => !doneIds.has(x.n.id)).map(x => row(x.n, `${x.c} ticked`))];
+  const y = dayStats(daysAgo(1));
+  let week = 0; for (let k = 0; k < 7; k++) week += dayStats(daysAgo(k)).done.length;
+  const best = e.currentTarget.classList.contains("best");
+  popMenu(e.currentTarget, `<div class="menu-label">Today${best ? " · best day this week" : ""}</div>
+    ${rows.join("") || `<div class="today-empty">Nothing yet. Mark a note done or tick a box and it shows up here.</div>`}
+    <hr><div class="today-foot">Yesterday ${y.done.length} done${y.ticked ? ` · ${y.ticked} ticked` : ""} · last 7 days ${week} done</div>`,
+    d => { if (d.goto) openNote(note(d.goto)); });
+};
+setInterval(renderToday, 5 * 60 * 1000);   // so "today" rolls over at midnight
 
 function renderMain() {
   const main = $("#main");
@@ -1709,7 +1772,9 @@ document.addEventListener("click", e => {
   if (!box || box.closest(".overlay")) return;
   e.preventDefault(); e.stopPropagation();
   const n = note(box.closest("[data-note]")?.dataset.note); if (!n) return;
+  const before = n.body;
   n.body = MD.toggleTask(n.body, +box.dataset.line);
+  logTick(n, before, n.body);
   n.updated = nowSec();
   save(); render();
 }, true);
@@ -1833,7 +1898,9 @@ function openNote(n, { panel = null, fresh = false } = {}) {
   view.addEventListener("click", e => {
     const box = e.target.closest("input.md-task"); if (!box) return;
     e.preventDefault();
+    const before = n.body;
     n.body = MD.toggleTask(n.body, +box.dataset.line);
+    logTick(n, before, n.body);
     const at = src.selectionStart;
     src.value = noteSource(n);
     src.setSelectionRange(at, at);

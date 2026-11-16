@@ -28,6 +28,7 @@ const ICON = {
   copy: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>', 14),
   check: svg('<path d="M20 6 9 17l-5-5"/>', 12),
   clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', 12),
+  tasks: svg('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/>', 12),
   link: svg('<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>', 12),
   grip: svg('<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>', 14),
   bookmark: svg('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>', 13),
@@ -520,6 +521,23 @@ function dueBadge(n) {
   const s = Due.status(n.due.target);
   return `<span class="due ${s.cls}" title="${esc(Due.describe(n.due))}">${ICON.clock}${esc(s.label)}</span>`;
 }
+// ticked "- [x]" boxes in the note's text count as its subtasks: a "2/5" chip,
+// green once all are ticked. Hidden on done notes and for a lone box.
+function taskInfo(n) {
+  if (isDone(n)) return null;
+  const t = MD.taskCount(n.body);
+  return t.total >= 2 ? t : null;
+}
+function taskBadge(n) {
+  const t = taskInfo(n); if (!t) return "";
+  const all = t.done === t.total;
+  return `<span class="tasks-badge ${all ? "all" : ""}" title="${t.done} of ${t.total} subtasks ticked">${ICON.tasks}${t.done}/${t.total}</span>`;
+}
+// a thin bar along the bottom of a card
+function taskBar(n) {
+  const t = taskInfo(n); if (!t) return "";
+  return `<div class="tasks-bar ${t.done === t.total ? "all" : ""}"><span style="width:${Math.round(100 * t.done / t.total)}%"></span></div>`;
+}
 // dependencies: n.deps holds the ids of the notes n waits on
 const depsOf = n => (n.deps || []).map(id => note(id)).filter(Boolean);
 const dependentsOf = n => ws.notes.filter(x => (x.deps || []).includes(n.id));
@@ -594,7 +612,8 @@ function cardHtml(n) {
     <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
     <div class="title">${esc(n.title || "(untitled)")}</div>
     ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
-    <div class="meta">${depBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
+    <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
+    ${taskBar(n)}
   </div>`;
 }
 

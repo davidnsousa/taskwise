@@ -39,7 +39,8 @@ function vCard(n, opts = {}) {
     ${whereHtml(n, opts)}
     <div class="title">${esc(n.title || "(untitled)")}</div>
     ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
-    <div class="meta">${depBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
+    <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
+    ${taskBar(n)}
   </div>`;
 }
 // a one-line note row (List and Bookmarks views)
@@ -51,7 +52,7 @@ function rowHtml(n, { showBoard = false } = {}) {
     <span class="t"><span class="tt">${esc(n.title || "(untitled)")}</span>${first ? `<span class="sub">${esc(first)}</span>` : ""}</span>
     ${showBoard ? `<span class="where-chip"><span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "?")}</span>` : ""}
     ${s ? `<span class="sec-chip">${esc(s.name)}</span>` : ""}
-    <span class="rmeta">${depBadge(n)}${tagPills(n)}${dueBadge(n)}${nl ? `<span class="nlinks" title="${nl} link${nl === 1 ? "" : "s"}">${ICON.link}${nl}</span>` : ""}</span>
+    <span class="rmeta">${depBadge(n)}${taskBadge(n)}${tagPills(n)}${dueBadge(n)}${nl ? `<span class="nlinks" title="${nl} link${nl === 1 ? "" : "s"}">${ICON.link}${nl}</span>` : ""}</span>
   </div>`;
 }
 
@@ -442,7 +443,7 @@ function graphNode(n) {
     <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
     ${whereHtml(n)}
     <div class="title">${esc(n.title || "(untitled)")}</div>
-    <div class="meta">${depBadge(n)}${dueBadge(n)}${tagPills(n)}</div>
+    <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}</div>
   </div>`;
 }
 

@@ -54,7 +54,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 
 **Notes**
 - Add with the + on any section; the new note opens straight in the note panel
-- Notes are Markdown with a `# Title` first line, rendered on the cards, with tickable `- [ ]` checkboxes
+- Notes are Markdown with a `# Title` first line, rendered on the cards, with tickable `- [ ]` checkboxes; two or more count as subtasks, shown as a `2/5` chip (green once all are ticked) and a thin bar along the card
 - The note panel shows the Markdown with a rendered preview under it that folds away
 - Sort the notes from the filter bar: manual, due date, title, newest, oldest or recently edited
 - Six themes from dark to light (Midnight, Dim, Dusk, Mist, Paper, Light), picked from the button next to Settings

@@ -378,6 +378,14 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
 .due.overdue, .due.today { background: var(--danger-bg); color: var(--danger); }
 .due.soon { background: var(--warn-bg); color: var(--warn); }
 .due.week { background: var(--accent-bg); color: var(--accent); }
+.tasks-badge {
+  display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 0 7px; height: 20px; font-size: calc(11px * var(--ui-scale));
+  background: var(--chip); color: var(--muted); white-space: nowrap; font-weight: 550; font-variant-numeric: tabular-nums;
+}
+.tasks-badge.all { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.tasks-bar { position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; border-radius: 2px 2px 0 0; background: var(--chip); overflow: hidden; }
+.tasks-bar span { display: block; height: 100%; background: var(--muted); opacity: 0.6; transition: width 0.2s; }
+.tasks-bar.all span { background: var(--ok); opacity: 1; }
 .lnk {
   display: inline-flex; align-items: center; gap: 5px; max-width: 170px; height: 20px; font-size: calc(11px * var(--ui-scale)); color: var(--muted);
   text-decoration: none; border-radius: 6px; padding: 0 7px; font-weight: 500; background: var(--chip);

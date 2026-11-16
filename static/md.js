@@ -99,6 +99,19 @@ const MD = (() => {
     return lines.join("\n");
   }
 
+  // how many "- [ ]" boxes the text has and how many are ticked (code blocks
+  // skipped, quoted and nested boxes counted, as render shows them)
+  function taskCount(src) {
+    let done = 0, total = 0, code = false;
+    for (const line of String(src || "").split("\n")) {
+      if (/^\s*```/.test(line)) { code = !code; continue; }
+      if (code) continue;
+      const m = line.match(/^\s*(?:>\s?)*\s*[-*+]\s+\[([ xX])\](?:\s|$)/);
+      if (m) { total++; if (m[1] !== " ") done++; }
+    }
+    return { done, total };
+  }
+
   // one line as plain text, for one-line previews
   const plain = line => String(line || "")
     .replace(/^\s*(?:>\s*)*(?:#{1,6}\s+|[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)?/, "")
@@ -106,5 +119,5 @@ const MD = (() => {
     .replace(/(\*\*|__|~~|`)/g, "")
     .trim();
 
-  return { render, toggleTask, plain, inline };
+  return { render, toggleTask, taskCount, plain, inline };
 })();

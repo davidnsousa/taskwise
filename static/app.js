@@ -353,7 +353,7 @@ function matches(n, { archive = false } = {}) {
     const words = ui.q.toLowerCase().split(/\s+/).filter(Boolean);
     const linkText = (n.links || []).map(id => { const x = bookmark(id); return x ? x.b.title + " " + x.b.url : ""; }).join(" ");
     const sec = section(b, n.sectionId)?.name || "";
-    const hay = `${n.title} ${n.body} ${tags.join(" ")} ${b?.name || ""} ${group(b?.groupId)?.name || ""} ${sec} ${linkText}`.toLowerCase();
+    const hay = `${n.title} ${n.body} ${n.waitingFor || ""} ${tags.join(" ")} ${b?.name || ""} ${group(b?.groupId)?.name || ""} ${sec} ${linkText}`.toLowerCase();
     if (!words.every(w => hay.includes(w))) return false;
   }
   return true;
@@ -524,7 +524,11 @@ function depBadge(n) {
   if (!w.length) return "";
   return `<span class="dep-badge" title="Waiting on: ${esc(w.map(d => d.title || "(untitled)").join(", "))}">${ICON.dep}waiting on ${w.length}</span>`;
 }
-const tagPills = n => (n.tags || []).map(t => `<span class="pill" style="--tc:${tagInfo(t).color}">${esc(t)}</span>`).join("");
+// the "waiting" tag carries what the note waits for (n.waitingFor)
+const WAITING = "waiting";
+const tagLabel = (n, t) => t === WAITING && n.waitingFor ? `${esc(t)} <span class="wf">· ${esc(n.waitingFor)}</span>` : esc(t);
+const tagTitle = (n, t) => t === WAITING && n.waitingFor ? ` title="waiting for: ${esc(n.waitingFor)}"` : "";
+const tagPills = n => (n.tags || []).map(t => `<span class="pill" style="--tc:${tagInfo(t).color}"${tagTitle(n, t)}>${tagLabel(n, t)}</span>`).join("");
 const linkChips = n => (n.links || []).map(id => {
   const x = bookmark(id); if (!x) return "";
   return `<span class="lnk-wrap"><a class="lnk" href="${esc(x.b.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.b.url)}">${fav(x.b.url, ICON.link)}<span>${esc(x.b.title)}</span></a><button class="lnk-more" data-lnk="${id}" data-lnk-note="${n.id}" title="Link menu" draggable="false">${ICON.more}</button></span>`;
@@ -1699,6 +1703,9 @@ function openNote(n, { panel = null, fresh = false } = {}) {
     </div>
     <div class="nv-meta ne-meta" id="nMeta"></div>
     <div class="ne-panel" data-panel="tags" hidden><div class="tag-pick" id="nTags"></div></div>
+    <div class="ne-panel" data-panel="waiting" hidden>
+      <label class="f">Waiting for<input type="text" id="nWaiting" placeholder="a person, a reply, a delivery…" value="${esc(n.waitingFor || "")}"></label>
+    </div>
     <div class="ne-panel" data-panel="due" hidden>
       <div class="due-row"><input type="text" id="nDue" placeholder="no due" value="${esc(n.due?.text || "")}" title="Type it the way you'd say it: “3 days”, “next week”, “before the 15th”, “friday”"><span class="due-preview" id="nDuePrev"></span></div>
       <div class="due-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}<button data-due="before ">before day…</button><button data-due="">clear</button></div>
@@ -1748,7 +1755,7 @@ function openNote(n, { panel = null, fresh = false } = {}) {
       due = `<button class="due ${s.cls} ne-chip" data-open="due" title="${esc(Due.describe(n.due))}">${ICON.clock}${esc(s.label)}</button>`;
     }
     $("#nMeta", o).innerHTML = due
-      + (n.tags || []).map(t => `<button class="pill ne-chip" data-open="tags" style="--tc:${tagInfo(t).color}">${esc(t)}</button>`).join("")
+      + (n.tags || []).map(t => `<button class="pill ne-chip" data-open="${t === WAITING ? "waiting" : "tags"}" style="--tc:${tagInfo(t).color}"${tagTitle(n, t)}>${tagLabel(n, t)}${t === WAITING && !n.waitingFor ? ` <span class="wf">· for what?</span>` : ""}</button>`).join("")
       + `<button class="ne-add" data-open="tags">${ICON.plusSm} tag</button>`
       + (due ? "" : `<button class="ne-add" data-open="due">${ICON.plusSm} due</button>`)
       + `<button class="ne-add" data-open="links">${ICON.plusSm} link</button>`
@@ -1821,7 +1828,15 @@ function openNote(n, { panel = null, fresh = false } = {}) {
     else if (t === "done") markDone(n);
     else n.tags = [...n.tags, t];
     touch(); renderTags(); renderMeta();
+    // just tagged waiting: ask what for
+    if (t === WAITING && n.tags.includes(WAITING)) showPanel("waiting");
   });
+  $("#nWaiting", o).oninput = e => {
+    const v = e.target.value.trim();
+    if (v) n.waitingFor = v; else delete n.waitingFor;
+    touch(); renderMeta();
+  };
+  $("#nWaiting", o).onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); showPanel("waiting"); } };
   $("#nTags", o).addEventListener("keydown", e => {
     if (e.target.id !== "nNewTag" || e.key !== "Enter") return;
     e.preventDefault();
@@ -2017,7 +2032,10 @@ function noteMenu(n, x, y) {
     if (d.tag !== undefined) {
       n.tags ||= [];
       n.tags = n.tags.includes(d.tag) ? n.tags.filter(t => t !== d.tag) : [...n.tags, d.tag];
-      touch(); noteMenu(n, x, y); return;
+      touch();
+      // just tagged waiting: open the note to ask what for
+      if (d.tag === WAITING && n.tags.includes(WAITING)) { closeMenu(); openNote(n, { panel: "waiting" }); return; }
+      noteMenu(n, x, y); return;
     }
     if (d.due !== undefined) {
       if (d.due === "") n.due = null;

@@ -333,6 +333,7 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
   background: color-mix(in srgb, var(--tc) 13%, transparent);
 }
 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--tc); }
+.pill .wf { font-weight: 450; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 .due {
   display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 0 7px; height: 20px; font-size: calc(11px * var(--ui-scale));
   background: var(--chip); color: var(--muted); white-space: nowrap; font-weight: 550; font-variant-numeric: tabular-nums;

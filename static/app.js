@@ -325,20 +325,6 @@ function sinkDone() {
   return moved;
 }
 
-// "Call Bob #urgent !next week" -> title, tags, due
-function parseQuick(text) {
-  let due = null;
-  const bang = text.match(/(^|\s)!([^\n#]+)\s*$/);
-  if (bang) {
-    const d = Due.parse(bang[2]);
-    if (d) { due = { ...d, set: Due.todayIso() }; text = text.slice(0, bang.index); }
-  }
-  const tags = [];
-  text = text.replace(/(^|\s)#([\p{L}\p{N}_-]+)/gu, (m, sp, t) => { tags.push(t.toLowerCase()); return sp; });
-  text = text.replace(/[ \t]+$/gm, "").trim();
-  const nl = text.indexOf("\n");
-  return { title: nl < 0 ? text : text.slice(0, nl).trim(), body: nl < 0 ? "" : text.slice(nl + 1).trim(), tags, due };
-}
 function ensureTags(names) {
   for (const name of names) {
     if (!ws.tags.some(t => t.name === name)) ws.tags.push({ name, color: PALETTE[ws.tags.length % PALETTE.length] });
@@ -596,22 +582,11 @@ function bmTree(b, parentId, depth) {
   return html;
 }
 
-let quick = null;
-
 // a board's sections in display order, with null standing for General
 function orderedSections(b) {
   const list = [...b.sections];
   list.splice(Math.max(0, Math.min(b.generalPos || 0, list.length)), 0, null);
   return list;
-}   // { board, section } where the quick-add box is open
-
-function quickHtml(b) {
-  const opts = orderedSections(b).map(x => `<option value="${x ? x.id : ""}" ${(x ? x.id : null) === (quick.section || null) ? "selected" : ""}>${x ? esc(x.name) : "General"}</option>`).join("");
-  return `<div class="quick">
-    <label class="quick-sec">Section <select data-act="quick-pick">${opts}</select></label>
-    <textarea placeholder="Note… (#tag, !next week)  Enter adds · Shift+Enter new line · Esc closes"></textarea>
-    <div class="row"><button class="primary" data-act="quick-add">Add note</button><button class="ghost" data-act="quick-close">Cancel</button>
-    <span class="hint">#tag · !due</span></div></div>`;
 }
 
 function columnHtml(b) {
@@ -635,7 +610,6 @@ function columnHtml(b) {
         <button class="ghost icon" data-act="add-bm" title="Add a link">${ICON.plusSm}</button></div>
       <ul class="bm-list">${bms.length || bmFolders(b).length ? bmTree(b, null, 0) : `<li class="bm-empty">No links yet — add one with +</li>`}</ul>
     </div>
-    ${quick && quick.board === b.id ? quickHtml(b) : `<button class="board-add" data-act="board-add" title="Add a note or a section">${ICON.plusSm}</button>`}
     <div class="col-body">
       ${orderedSections(b).map(sec => {
         // General = notes outside any other section; it has a place in the
@@ -648,6 +622,7 @@ function columnHtml(b) {
           <div class="sec-head" data-act="toggle-sec" draggable="true" title="${sec ? "" : "Notes that aren't in any other section · "}drag to move the section">
             <span class="arrow">${ICON.chevron}</span><span class="sec-name">${sec ? esc(sec.name) : "General"}</span>
             <span class="n">${list.length === total ? total : `${list.length}/${total}`}</span>
+            <button class="ghost icon" data-act="sec-add" title="Add a note">${ICON.plusSm}</button>
             ${sec ? `<button class="ghost icon" data-act="sec-menu" title="Section menu">${ICON.more}</button>` : ""}
           </div>
           <div class="notes" data-section="${sec ? sec.id : ""}">${list.map(cardHtml).join("")}</div>
@@ -668,13 +643,12 @@ function renderBoard(main) {
   // keep scroll positions across re-renders
   const scrolls = {};
   $$(".column", main).forEach(c => { scrolls[c.dataset.board] = $(".col-body", c)?.scrollTop || 0; });
-  const quickDraft = $(".quick textarea", main)?.value;
   const mainScroll = main.scrollLeft;
 
   if (!ws.boards.length) {
     main.innerHTML = `<div class="empty-board"><h2>No boards yet</h2>
-      <p>Boards are the columns, kept in <b>groups</b>. Add a board, then add notes with the <b>+</b> bar inside each section and split it into
-      <b>sections</b> if you like. Quick add understands <code>#tags</code> and a due at the end, e.g. <code>Send invoice #urgent !next week</code>.</p>
+      <p>Boards are the columns, kept in <b>groups</b>. Add a board, split it into <b>sections</b> if you like
+      and add notes with the <b>+</b> on each section.</p>
       <button class="primary" id="firstBoard">${ICON.plus} Create a board</button></div>`;
     $("#firstBoard").onclick = () => addBoard();
     return;
@@ -706,8 +680,6 @@ function renderBoard(main) {
   $$(".column", main).forEach(c => { const body = $(".col-body", c); if (body) body.scrollTop = scrolls[c.dataset.board] || 0; });
   main.scrollLeft = mainScroll;
   $("#addGroupBtn")?.addEventListener("click", addGroup);
-  const q = $(".quick textarea", main);
-  if (q) { if (quickDraft) q.value = quickDraft; q.focus(); }
 }
 
 // collapsed boards fold into a row of chips above the group's boards, so
@@ -836,18 +808,7 @@ $("#main").addEventListener("click", e => {
   }
   if (e.target.closest("a")) return;   // links open normally
   switch (act) {
-    case "board-add":
-      e.stopPropagation();
-      popMenu(e.target.closest("button"), `
-        <button data-m="note">${ICON.plusSm} Note</button>
-        <button data-m="sec">${ICON.plusSm} Section</button>`, d => {
-        if (d.m === "note") { quick = { board: b.id, section: null }; renderMain(); }
-        if (d.m === "sec") addSection(b);
-      });
-      return;
-    case "quick-pick": return;
-    case "quick-close": quick = null; renderMain(); return;
-    case "quick-add": quickAdd($(".quick textarea", col)); return;
+    case "sec-add": e.stopPropagation(); newNote(b, sec ? sec.id : null); return;
     case "board-menu": boardMenu(b, e.target.closest("button")); return;
     case "group-menu": groupMenu(g, e.target.closest("button")); return;
     case "sec-menu": e.stopPropagation(); sectionMenu(b, sec, e.target.closest("button")); return;
@@ -890,31 +851,16 @@ $("#main").addEventListener("dblclick", e => {
   const sn = e.target.closest(".sec-name");
   if (sn && !sn.closest(".section.general")) { const b = boardById(sn.closest(".column").dataset.board); renameInline(sn, section(b, sn.closest(".section").dataset.section)); }
 });
-$("#main").addEventListener("change", e => {
-  if (e.target.matches(".quick select") && quick) quick.section = e.target.value || null;
-});
-$("#main").addEventListener("keydown", e => {
-  if (!e.target.matches(".quick textarea")) return;
-  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); quickAdd(e.target); }
-  if (e.key === "Escape") { quick = null; renderMain(); }
-});
-
-function quickAdd(ta) {
-  const text = ta.value.trim();
-  if (!text || !quick) { ta.focus(); return; }
-  const pick = ta.closest(".quick")?.querySelector("select");
-  if (pick) quick.section = pick.value || null;
-  const target = section(boardById(quick.board), quick.section);
-  if (target) target.collapsed = false; else if (!quick.section) boardById(quick.board).generalCollapsed = false;
-  const q = parseQuick(text);
-  ensureTags(q.tags);
-  const n = { id: uid(), boardId: quick.board, sectionId: quick.section, title: q.title, body: q.body, tags: q.tags, due: q.due, links: [], created: nowSec(), updated: nowSec() };
+// a new, empty note at the top of a section, opened in the note panel;
+// closed while still empty, it's dropped again
+function newNote(b, sectionId) {
+  const sec = section(b, sectionId);
+  if (sec) sec.collapsed = false; else b.generalCollapsed = false;
+  const n = { id: uid(), boardId: b.id, sectionId, title: "", body: "", tags: [], due: null, links: [], created: nowSec(), updated: nowSec() };
   placeAtStart(n);
-  ta.value = "";
-  quick = null;
   save();
   render();
-  if (!matches(n)) toast("Added — but hidden by the current filters.");
+  openNote(n, { fresh: true });
 }
 
 function toggleDone(n) {
@@ -1327,7 +1273,6 @@ function boardMenu(b, anchor) {
     <button data-m="rename">${ICON.edit} Rename</button>
     <button data-m="add-sec">${ICON.plusSm} Add section</button>
     <button data-m="add-bm">${ICON.bookmark} Add link</button>
-    <button data-m="add-bmf">${ICON.folder} New link folder</button>
     <button data-m="only">${ICON.eye} Show only this board</button>
     <hr>${stateItems(b)}
     ${others.length ? `<hr><div class="menu-label">Move to group</div>${others.map(g => `<button data-move="${g.id}"><span class="gdot" style="background:${g.color}"></span>${esc(g.name)}</button>`).join("")}` : ""}
@@ -1339,7 +1284,6 @@ function boardMenu(b, anchor) {
       case "rename": { const h2 = $(`.column[data-board="${b.id}"] .col-head h2`); if (h2) renameInline(h2, b); break; }
       case "add-sec": addSection(b); break;
       case "add-bm": editBookmark(b, null); break;
-      case "add-bmf": newBmFolder(b, null); break;
       case "only": ui.board = b.id; saveSettings(); render(); break;
       case "collapsed": case "hidden": case "hibernated": setState(b, d.m, !b[d.m]); break;
       case "delete": deleteBoard(b); break;
@@ -1379,7 +1323,7 @@ function sectionMenu(b, s, anchor) {
     <hr><button data-m="delete" class="danger">Delete section…</button>`, d => {
     switch (d.m) {
       case "rename": { const el = $(`.column[data-board="${b.id}"] .section[data-section="${s.id}"] .sec-name`); if (el) renameInline(el, s); break; }
-      case "add": quick = { board: b.id, section: s.id }; s.collapsed = false; renderMain(); break;
+      case "add": newNote(b, s.id); break;
       case "collapse": s.collapsed = !s.collapsed; save(); renderMain(); break;
       case "up": case "down": b.sections.splice(i, 1); b.sections.splice(i + (d.m === "up" ? -1 : 1), 0, s); save(); renderMain(); break;
       case "delete": {
@@ -1449,7 +1393,7 @@ document.addEventListener("keydown", e => {
   // 1-8 pick a view (in the order of the buttons at the top)
   if (/^[1-9]$/.test(e.key) && !o && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.matches("input, textarea, select, [contenteditable]")) {
     const b = $$("#viewSeg button")[+e.key - 1];
-    if (b) { ui.view = b.dataset.view; quick = null; saveSettings(); render(); }
+    if (b) { ui.view = b.dataset.view; saveSettings(); render(); }
   }
 });
 
@@ -1688,7 +1632,7 @@ function editBookmark(b, id, folderId = null) {
 const DUE_CHIPS = ["today", "tomorrow", "this week", "next week", "2 weeks", "this month", "next month"];
 
 // a note opened from the board or a view, ready to edit: changes apply as you make them
-function openNote(n, { panel = null } = {}) {
+function openNote(n, { panel = null, fresh = false } = {}) {
   if (!n) return;
   const sectionOptions = () => {
     const b = boardOf(n);
@@ -1964,7 +1908,12 @@ function openNote(n, { panel = null } = {}) {
     } else if (go) { render(); openNote(note(go.dataset.goto)); }
   });
 
-  o._close = () => { closeModal(); render(); };
+  const isEmpty = () => !n.title.trim() && !n.body.trim() && !(n.tags || []).length && !n.due && !(n.links || []).length && !(n.deps || []).length;
+  o._close = () => {
+    closeModal();
+    if (fresh && isEmpty() && ws.notes.includes(n)) { ws.notes = ws.notes.filter(x => x !== n); save(); }
+    render();
+  };
   $("#nClose", o).onclick = o._close;
   $("#nDelete", o).onclick = () => { closeModal(); deleteNote(n); };
   if (panel) showPanel(panel);
@@ -2129,7 +2078,7 @@ async function openSettings() {
     </div>
     <div class="section-f"><span class="lbl">Tags</span><div class="tag-manage" id="sTags"></div>
       <div class="row"><input type="text" id="sNewTag" placeholder="new tag" style="flex:1"><button id="sAddTag">Add tag</button></div></div>
-    <div class="foot"><span class="hint">Tip: quick add understands <code>#tag</code> and <code>!next week</code></span><div class="spacer"></div><button class="primary" id="sClose">Close</button></div>`);
+    <div class="foot"><div class="spacer"></div><button class="primary" id="sClose">Close</button></div>`);
   $("#sTheme", o).value = settings.theme === "light" ? "light" : "dark";
   $("#sScale", o).value = settings.scale || 1;
   $("#sTheme", o).onchange = e => { settings.theme = e.target.value; applyLook(); saveSettings(); };

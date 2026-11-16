@@ -53,7 +53,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - Collapse, hide or hibernate groups and boards
 
 **Notes**
-- Add from the + under Links, picking the section; quick add takes `#tags` and a due date after `!`
+- Add with the + on any section; the new note opens straight in the note panel
 - Due dates in plain words, shown relative to today
 - Filters by search, due date, board, section and tag
 - Notes can depend on other notes; the Graph view draws who waits on whom

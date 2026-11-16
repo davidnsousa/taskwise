@@ -285,14 +285,14 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
 .sec-head:hover { background: color-mix(in srgb, var(--pc) 7%, transparent); }
 .sec-head .arrow { display: inline-flex; color: var(--faint); transform: rotate(90deg); transition: transform 0.18s; }
 .section.collapsed .sec-head .arrow { transform: none; }
-.section.collapsed .notes, .section.collapsed .quick { display: none; }
+.section.collapsed .notes { display: none; }
 .sec-head .sec-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sec-head .n {
   font-size: calc(11px * var(--ui-scale)); color: var(--muted); font-weight: 550; font-variant-numeric: tabular-nums;
   background: color-mix(in srgb, var(--pc) 12%, transparent); border-radius: 999px; padding: 1px 7px; min-width: 20px; text-align: center;
 }
-.sec-head .ghost.icon { width: 24px; height: 24px; opacity: 0; }
-.sec-head:hover .ghost.icon { opacity: 1; }
+.sec-head .ghost.icon { width: 24px; height: 24px; opacity: 0.6; }
+.sec-head:hover .ghost.icon, .sec-head .ghost.icon:focus-visible { opacity: 1; }
 .sec-head input.rename { font-size: calc(12.5px * var(--ui-scale)); }
 .section.general { border-style: solid; }
 .col-body > .section:last-child { margin-bottom: 2px; }
@@ -360,20 +360,8 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
   flex: 1; background: none; border: none; color: var(--muted); justify-content: flex-start; padding: 0 8px; border-radius: 8px; box-shadow: none;
 }
 .add-note:hover { background: var(--hover); color: var(--text); }
-.board-add, :root[data-theme="light"] .board-add {
-  display: flex; flex-shrink: 0; width: calc(100% - 16px); margin: 0 8px 2px; height: 28px; justify-content: center; align-items: center; padding: 0;
-  background: none; border: 1px dashed color-mix(in srgb, var(--pc) 30%, var(--border)); border-radius: 9px; color: var(--faint); box-shadow: none;
-}
-.board-add:hover { background: var(--hover); color: var(--text); border-color: color-mix(in srgb, var(--pc) 55%, var(--border)); }
-.column.collapsed .board-add, .column.collapsed .quick { display: none; }
-.quick-sec { display: flex; align-items: center; gap: 8px; font-size: calc(12px * var(--ui-scale)); color: var(--muted); }
-.quick-sec select { flex: 1; min-width: 0; }
 .card.link-drop { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-bg); }
 .add-sec { font-size: calc(12px * var(--ui-scale)); color: var(--faint); }
-.quick { margin: 4px 8px 8px; display: flex; flex-direction: column; gap: 7px; }
-.quick textarea { resize: none; min-height: 68px; background: var(--card) !important; box-shadow: var(--shadow-sm); line-height: 1.5; border-radius: 10px; }
-.quick .row { display: flex; gap: 6px; align-items: center; }
-.quick .hint { margin-left: auto; }
 .add-col { width: 200px; flex-shrink: 0; background: none; border: 1px dashed var(--border-strong); color: var(--muted); padding: 14px; border-radius: 12px; justify-content: flex-start; }
 .add-col:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
 .empty-board { margin: 70px auto; padding: 34px 36px; max-width: 540px; line-height: 1.65; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); }

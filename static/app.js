@@ -67,8 +67,10 @@ async function loadBoard() {
   ws = data.board;
   rev = data.rev;
   ws.groups ||= []; ws.boards ||= []; ws.notes ||= []; ws.tags ||= [];
-  // notes done before taskwise kept doneAt: done "long ago", so they don't count as today
-  for (const n of ws.notes) if (isDone(n) && !n.doneAt) n.doneAt = 1;
+  // notes done before taskwise kept doneAt: their last edit is the best guess
+  // (usually the moment they were marked done); 1 = "long ago" when unknown
+  // (an earlier version wrote 1 for all of them, so 1 is redone too)
+  for (const n of ws.notes) if (isDone(n) && (!n.doneAt || n.doneAt === 1)) n.doneAt = n.updated || 1;
   let changed = false;
   // boards from the first version used pastel defaults; swap those for the
   // current palette (colours you picked yourself are left alone)

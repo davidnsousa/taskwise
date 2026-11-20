@@ -1401,6 +1401,12 @@ function renameInline(el, obj) {
 
 function closeMenu() { $(".menu")?.remove(); }
 document.addEventListener("mousedown", e => { if (!e.target.closest(".menu")) closeMenu(); });
+// Esc closes an open menu first, before anything under it (a note, a dialog)
+window.addEventListener("keydown", e => {
+  if (e.key !== "Escape" || !$(".menu")) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  closeMenu();
+}, true);
 
 function popMenu(anchor, html, onPick) {
   closeMenu();

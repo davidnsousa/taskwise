@@ -612,6 +612,28 @@ def _is_risky(p: Path) -> bool:
     return False
 
 
+def _reveal(p: Path):
+    """Show a bookmarked file or folder in the file manager, selected when the
+    file manager supports it (org.freedesktop.FileManager1), else just open
+    the folder that holds it."""
+    folder = p.parent
+    if not folder.is_dir():
+        return JSONResponse({"error": f"Folder not found (moved or deleted?): {folder}"}, status_code=404)
+    if p.exists() and shutil.which("gdbus"):
+        r = subprocess.run(["gdbus", "call", "--session", "--dest", "org.freedesktop.FileManager1",
+                            "--object-path", "/org/freedesktop/FileManager1",
+                            "--method", "org.freedesktop.FileManager1.ShowItems",
+                            f"['{p.as_uri()}']", ""], capture_output=True, timeout=5)
+        if r.returncode == 0:
+            return {"ok": True}
+    opener = shutil.which("xdg-open") or shutil.which("gio")
+    if not opener:
+        return JSONResponse({"error": "xdg-open not found (install xdg-utils)."}, status_code=501)
+    cmd = [opener, str(folder)] if opener.endswith("xdg-open") else [opener, "open", str(folder)]
+    subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    return {"ok": True}
+
+
 @app.post("/api/open")
 async def api_open(request: Request):
     """Open a bookmarked local file or folder with the default app."""
@@ -629,6 +651,8 @@ async def api_open(request: Request):
     if path not in saved:
         return JSONResponse({"error": "Only files saved as bookmarks can be opened."}, status_code=403)
     p = Path(path)
+    if payload.get("reveal"):
+        return _reveal(p)
     if not p.exists():
         return JSONResponse({"error": f"Not found (moved or deleted?): {path}"}, status_code=404)
     if _is_risky(p):

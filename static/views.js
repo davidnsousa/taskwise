@@ -296,7 +296,7 @@ function renderBookmarks(main) {
         <span class="host">${esc(hostOf(x.url))}</span>
         <span class="spacer"></span>
         ${linked.length ? `<span class="lc" title="${linked.length} note(s) linked">${linked.length}</span>` : ""}
-        <button class="ghost icon" data-vact="edit-bm" data-board="${b.id}" data-bm="${x.id}" title="Edit">${ICON.edit}</button>
+        <button class="ghost icon lnk-more" data-lnk="${x.id}" title="Link menu" draggable="false">${ICON.more}</button>
       </div>
       ${showNotes && list.length ? `<div class="bmv-notes">${sortNotes(list).map(n => rowHtml(n, { showBoard: n.boardId !== b.id })).join("")}</div>` : ""}
     </div>`;
@@ -501,7 +501,6 @@ $("#main").addEventListener("click", e => {
     e.stopPropagation();
     switch (act.dataset.vact) {
       case "done": toggleDone(note(act.closest("[data-note]").dataset.note)); return;
-      case "edit-bm": editBookmark(boardById(act.dataset.board), act.dataset.bm); return;
       case "new-bmf": newBmFolder(boardById(act.dataset.board), act.dataset.parent || null); return;
     }
     return;

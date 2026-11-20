@@ -485,9 +485,9 @@ $("#sidebarBtn").onclick = () => { settings.sidebar = !settings.sidebar; applyLo
 
 // ---------- local files ----------
 
-async function openLocal(url) {
+async function openLocal(url, reveal = false) {
   try {
-    const res = await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }) });
+    const res = await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, reveal }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) toast(esc(data.error || "Couldn't open it."), 7000);
   } catch { toast("Taskwise isn't running."); }
@@ -641,25 +641,26 @@ async function copyText(text) {
     document.execCommand("copy"); ta.remove();
   }
 }
-document.addEventListener("click", e => {
-  const btn = e.target.closest?.(".lnk-more");
-  if (!btn) return;
-  e.preventDefault(); e.stopPropagation();
-  const n = note(btn.dataset.lnkNote), x = bookmark(btn.dataset.lnk);
-  if (!n || !x) return;
-  const ov = btn.closest(".overlay");
-  popMenu(btn, `
+// one menu for every link: a note's link chips, a board's Links list and the
+// Links view. With a note it can take the link off that note; without, it
+// deletes the link itself (both undoable).
+function linkMenu(x, anchor, n) {
+  const local = isLocal(x.b.url);
+  const ov = anchor.closest?.(".overlay");
+  popMenu(anchor, `
     <button data-m="open">${ICON.link} Open</button>
+    ${local ? `<button data-m="reveal">${ICON.folder} Open containing folder</button>` : ""}
     <button data-m="edit">${ICON.edit} Edit…</button>
-    <button data-m="copy">${ICON.copy} Copy address</button>
-    <hr><button data-m="remove" class="danger">${ICON.x} Remove from note</button>`, d => {
+    <button data-m="copy">${ICON.copy} Copy ${local ? "path" : "address"}</button>
+    <hr>${n ? `<button data-m="remove" class="danger">${ICON.x} Remove from note</button>` : `<button data-m="delete" class="danger">${ICON.x} Delete link</button>`}`, d => {
     switch (d.m) {
       case "open":
-        if (isLocal(x.b.url)) openLocal(x.b.url);
+        if (local) openLocal(x.b.url);
         else window.open(x.b.url, "_blank", "noopener,noreferrer");
         break;
+      case "reveal": openLocal(x.b.url, true); break;
       case "edit": editBookmark(x.board, x.b.id); break;
-      case "copy": copyText(isLocal(x.b.url) ? pathOf(x.b.url) : x.b.url).then(() => toast("Address copied.")); break;
+      case "copy": copyText(local ? pathOf(x.b.url) : x.b.url).then(() => toast(local ? "Path copied." : "Address copied.")); break;
       case "remove": {
         const snapshot = JSON.stringify(ws);
         n.links = (n.links || []).filter(id => id !== x.b.id); n.updated = nowSec();
@@ -668,8 +669,39 @@ document.addEventListener("click", e => {
         offerUndo(`Removed “${esc(x.b.title)}” from “${esc(n.title || "note")}”. It's still in ${esc(x.board.name)}'s Links.`, snapshot);
         break;
       }
+      case "delete": {
+        const snapshot = JSON.stringify(ws);
+        x.board.bookmarks = x.board.bookmarks.filter(y => y !== x.b);
+        ws.notes.forEach(m => { m.links = (m.links || []).filter(l => l !== x.b.id); });
+        if (ui.bookmark === x.b.id) ui.bookmark = null;
+        save(); render();
+        offerUndo(`Deleted link “${esc(x.b.title)}”.`, snapshot);
+        break;
+      }
     }
   });
+}
+// the ⋯ button, or a right-click, on any link
+const linkTarget = t => t.closest?.(".lnk-more, .lnk-wrap, .bm-list li[data-bm], .bmv-row[data-bm]");
+function linkMenuFrom(el, at) {
+  const host = el.closest(".lnk-wrap") ? el.closest(".lnk-wrap").querySelector(".lnk-more") : el.closest("[data-bm]");
+  const id = host?.dataset.lnk || host?.dataset.bm;
+  const x = id && bookmark(id); if (!x) return false;
+  const n = host.dataset.lnkNote ? note(host.dataset.lnkNote) : null;
+  linkMenu(x, at || host.querySelector(".lnk-more") || host, n);
+  return true;
+}
+document.addEventListener("click", e => {
+  const btn = e.target.closest?.(".lnk-more");
+  if (!btn) return;
+  e.preventDefault(); e.stopPropagation();
+  linkMenuFrom(btn, btn);
+}, true);
+document.addEventListener("contextmenu", e => {
+  const el = linkTarget(e.target);
+  if (!el || e.target.closest("input, textarea")) return;
+  const at = { getBoundingClientRect: () => ({ left: e.clientX, bottom: e.clientY }), closest: s => el.closest(s) };
+  if (linkMenuFrom(el, at)) { e.preventDefault(); e.stopPropagation(); }
 }, true);
 
 function cardHtml(n) {
@@ -701,7 +733,7 @@ function bmTree(b, parentId, depth) {
     html += `<li data-bm="${x.id}" draggable="true" style="--d:${depth}" class="${ui.bookmark === x.id ? "hl" : ""}">
       <a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.url)}">${fav(x.url)}<span>${esc(x.title)}</span></a>
       ${c ? `<button class="lc" data-act="filter-bm" title="show the ${c} note(s) linked to this">${c}</button>` : ""}
-      <button class="ghost icon" data-act="edit-bm" title="Edit">${ICON.edit}</button></li>`;
+      <button class="ghost icon lnk-more" data-lnk="${x.id}" title="Link menu" draggable="false">${ICON.more}</button></li>`;
   }
   if (parentId && !folders.length && !items.length) html += `<li class="bm-empty" style="--d:${depth}">Empty folder</li>`;
   return html;
@@ -951,7 +983,6 @@ $("#main").addEventListener("click", e => {
     case "bmf-toggle": { const f = bmFolder(b, e.target.closest("[data-folder]").dataset.folder); f.collapsed = !f.collapsed; save(); renderMain(); return; }
     case "toggle-bm": b.bookmarksOpen = !b.bookmarksOpen; save(); renderMain(); return;
     case "toggle-archive": b.archiveOpen = !b.archiveOpen; save(); renderMain(); return;
-    case "edit-bm": editBookmark(b, e.target.closest("li").dataset.bm); return;
     case "filter-bm": { const id = e.target.closest("li").dataset.bm; ui.bookmark = ui.bookmark === id ? null : id; render(); return; }
   }
   if (card) { openNote(note(card.dataset.note)); return; }

@@ -928,3 +928,25 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .act-rows { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; }
 .act-tick { display: inline-flex; align-items: center; gap: 4px; font-size: calc(11.5px * var(--ui-scale)); color: var(--ok); white-space: nowrap; }
 .act-tick .ic { width: 12px; height: 12px; }
+
+/* ---------- due calendar (note panel and right-click menu) ---------- */
+.due-chips button.due-cal-btn, .menu-chips button[data-cal-open] { display: inline-flex; align-items: center; gap: 5px; }
+.cal { width: 252px; user-select: none; }
+.menu .cal { padding: 2px 8px 6px; }
+.cal-head { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+.cal-title { flex: 1; font-weight: 600; font-size: calc(13px * var(--ui-scale)); padding-left: 4px; text-transform: capitalize; }
+.cal-head button.icon, .menu .cal-head button { height: 26px; width: 26px; padding: 0; justify-content: center; color: var(--muted); }
+.menu .cal-head button.cal-now, .cal-head button.cal-now { width: auto; padding: 0 8px; font-size: calc(11.5px * var(--ui-scale)); }
+.cal-arrow { display: inline-flex; }
+.cal-arrow.prev { transform: rotate(180deg); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-wd { text-align: center; font-size: calc(10.5px * var(--ui-scale)); color: var(--faint); padding: 2px 0 4px; text-transform: uppercase; }
+.cal-grid button, :root[data-theme="light"] .cal-grid button, .menu .cal-grid button {
+  height: 32px; width: auto; padding: 0; justify-content: center; border-radius: 8px; border: 1px solid transparent;
+  background: none; box-shadow: none; color: var(--text); font-size: calc(12.5px * var(--ui-scale)); font-variant-numeric: tabular-nums; }
+:root .cal .cal-grid button.we { color: var(--muted); }
+:root .cal .cal-grid button.past { color: var(--faint); }
+:root .cal .cal-grid button.out { color: var(--faint); opacity: 0.55; }
+:root .cal .cal-grid button:hover { background: var(--btn-hover); border-color: transparent; }
+:root .cal .cal-grid button.today { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+:root .cal .cal-grid button.on, :root .cal .cal-grid button.on:hover { background: var(--accent-strong); border-color: transparent; color: var(--on-accent); font-weight: 600; opacity: 1; }

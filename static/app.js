@@ -23,6 +23,7 @@ const ICON = {
   plusSm: svg('<path d="M12 5v14M5 12h14"/>', 14),
   more: svg('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>'),
   chevron: svg('<path d="m9 6 6 6-6 6"/>', 14),
+  calendar: svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>', 13),
   edit: svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>', 14),
   x: svg('<path d="M18 6 6 18M6 6l12 12"/>', 14),
   copy: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>', 14),
@@ -1793,6 +1794,32 @@ function editBookmark(b, id, folderId = null) {
 
 const DUE_CHIPS = ["today", "tomorrow", "this week", "next week", "2 weeks", "this month", "next month"];
 
+// a month to pick a due day from, weeks Monday to Sunday. Days carry
+// data-cal-day="YYYY-MM-DD", the arrows data-cal-month="YYYY-MM" (the month
+// to show instead); `picked` is the day the due is on now.
+const monthKey = d => dayKey(d).slice(0, 7);
+function calHtml(month, picked) {
+  const [y, m] = month.split("-").map(Number);
+  const first = new Date(y, m - 1, 1), today = dayKey();
+  const start = new Date(y, m - 1, 1 - (first.getDay() + 6) % 7);
+  const wd = [...Array(7)].map((_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: "narrow" }));   // 1 Jan 2024 was a Monday
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = dayKey(d);
+    const cls = [d.getMonth() !== m - 1 && "out", k < today && "past", k === today && "today", k === picked && "on", (d.getDay() + 6) % 7 > 4 && "we"].filter(Boolean).join(" ");
+    cells.push(`<button type="button" class="${cls}" data-cal-day="${k}" title="${esc(d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }))}">${d.getDate()}</button>`);
+  }
+  return `<div class="cal">
+    <div class="cal-head">
+      <button type="button" class="ghost icon" data-cal-month="${monthKey(new Date(y, m - 2, 1))}" title="Previous month"><span class="cal-arrow prev">${ICON.chevron}</span></button>
+      <span class="cal-title">${esc(first.toLocaleDateString(undefined, { month: "long", year: "numeric" }))}</span>
+      ${month !== today.slice(0, 7) ? `<button type="button" class="ghost cal-now" data-cal-month="${today.slice(0, 7)}" title="Back to this month">today</button>` : ""}
+      <button type="button" class="ghost icon" data-cal-month="${monthKey(new Date(y, m, 1))}" title="Next month"><span class="cal-arrow">${ICON.chevron}</span></button>
+    </div>
+    <div class="cal-grid">${wd.map(w => `<span class="cal-wd">${esc(w)}</span>`).join("")}${cells.join("")}</div>
+  </div>`;
+}
+
 // a note opened from the board or a view, ready to edit: changes apply as you make them
 // a note's text as one Markdown source, its title as the first-line heading
 const noteSource = n => `# ${n.title || ""}${(n.body || "").trim() ? `\n\n${n.body}` : ""}`;
@@ -1845,7 +1872,7 @@ function openNote(n, { panel = null, fresh = false } = {}) {
     </div>
     <div class="ne-panel" data-panel="due" hidden>
       <div class="due-row"><input type="text" id="nDue" placeholder="no due" value="${esc(n.due?.text || "")}" title="Type it the way you'd say it: “3 days”, “next week”, “before the 15th”, “friday”"><span class="due-preview" id="nDuePrev"></span></div>
-      <div class="due-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}<button data-due="before ">before day…</button><button data-due="">clear</button></div>
+      <div class="due-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}<button data-due="before ">before day…</button><button data-due-cal class="due-cal-btn">${ICON.calendar} pick a day…</button><button data-due="">clear</button></div>
     </div>
     <div class="ne-panel" data-panel="links" hidden>
       <input type="search" id="nLinkFilter" placeholder="filter links…" style="display:none">
@@ -2011,6 +2038,11 @@ function openNote(n, { panel = null, fresh = false } = {}) {
   // only re-resolve when the words change: "next week" set last week keeps its day
   dueIn.oninput = applyDue;
   $(".due-chips", o).onclick = e => {
+    const calBtn = e.target.closest("[data-due-cal]");
+    if (calBtn) {
+      calPopup(calBtn, n.due?.target, day => { dueIn.value = Due.pick(day).text; applyDue(); });
+      return;
+    }
     const v = e.target.closest("[data-due]")?.dataset.due;
     if (v === undefined) return;
     dueIn.value = v;
@@ -2150,6 +2182,14 @@ function deleteNote(n) {
 
 // right-click a note on any view: the common changes without opening it.
 // Tags stay open so several can be toggled; the rest close the menu.
+// "pick a day…": the calendar as a pop-up by `anchor`, opening on the month of
+// `picked` (the current due day, if any); onDay gets the day clicked
+function calPopup(anchor, picked, onDay, month = (picked || Due.todayIso()).slice(0, 7)) {
+  popMenu(anchor, `<div class="menu-label">Due on</div>${calHtml(month, picked)}`, d => {
+    if (d.calMonth) calPopup(anchor, picked, onDay, d.calMonth);
+    else if (d.calDay) onDay(d.calDay);
+  });
+}
 function noteMenu(n, x, y) {
   const at = { getBoundingClientRect: () => ({ left: x, bottom: y }) };
   const b = boardOf(n), secs = b?.sections || [];
@@ -2161,7 +2201,7 @@ function noteMenu(n, x, y) {
     <button data-m="deps">${ICON.dep} Depends on…</button>
     <button data-m="archive">${ICON.archive} ${inArchive(n) ? "Restore from archive" : "Archive"}</button>
     <hr><div class="menu-label">Due ${due}</div>
-    <div class="menu-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}${n.due ? `<button data-due="">clear</button>` : ""}</div>
+    <div class="menu-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}<button data-cal-open="">${ICON.calendar} pick a day…</button>${n.due ? `<button data-due="">clear</button>` : ""}</div>
     ${tags.length ? `<hr><div class="menu-label">Tags</div>
     <div class="menu-chips tag-pick">${tags.map(t => `<button class="pill ${(n.tags || []).includes(t.name) ? "on" : ""}" data-tag="${esc(t.name)}" style="--tc:${t.color}">${esc(t.name)}</button>`).join("")}</div>` : ""}
     ${secs.length ? `<hr><div class="menu-label">Move to section</div>
@@ -2175,6 +2215,10 @@ function noteMenu(n, x, y) {
       // just tagged waiting: open the note to ask what for
       if (d.tag === WAITING && n.tags.includes(WAITING)) { closeMenu(); openNote(n, { panel: "waiting" }); return; }
       noteMenu(n, x, y); return;
+    }
+    if (d.calOpen !== undefined) {
+      calPopup(at, n.due?.target, day => { n.due = { ...Due.pick(day), set: Due.todayIso() }; touch(); });
+      return;
     }
     if (d.due !== undefined) {
       if (d.due === "") n.due = null;

@@ -11,6 +11,7 @@ const Due = (() => {
   const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
   const WD_SHORT = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const MONTHS_LONG = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
   const NUMWORDS = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, couple: 2, few: 3 };
 
   const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -104,7 +105,31 @@ const Due = (() => {
       if (!m[3] && d < today) d = new Date(y + 1, +m[2] - 1, +m[1]);
       return r(`${+m[1]} ${MONTHS[+m[2] - 1]}`, d);
     }
+    // "12 dec", "12 december 2027", "dec 12", "december 12th 2027" (what the calendar writes)
+    if ((m = s.match(/^(\d{1,2})(?:st|nd|rd|th)? ([a-z]{3,9})\.?,?(?: (\d{4}))?$/)) || (m = s.match(/^([a-z]{3,9})\.? (\d{1,2})(?:st|nd|rd|th)?,?(?: (\d{4}))?$/))) {
+      const [dd, name] = /^\d/.test(m[1]) ? [+m[1], m[2]] : [+m[2], m[1]];
+      // "dec", "december" and "sept" all count; "decx" doesn't
+      const mo = MONTHS_LONG.findIndex(x => x.startsWith(name) || (name === "sept" && x === "september"));
+      if (mo < 0) return null;
+      const y = m[3] ? +m[3] : today.getFullYear();
+      let d = new Date(y, mo, dd);
+      if (d.getMonth() !== mo) return null;
+      if (!m[3] && d < today) d = new Date(y + 1, mo, dd);
+      return r(label(d), d);
+    }
     return null;
+  }
+
+  // "12 Dec", with the year when it isn't this year
+  function label(d, now = new Date()) {
+    return `${d.getDate()} ${MONTHS[d.getMonth()]}` + (d.getFullYear() !== now.getFullYear() ? ` ${d.getFullYear()}` : "");
+  }
+  // a day picked on the calendar ("YYYY-MM-DD") as a due; a past day this
+  // year keeps its year in the words, so typing them back gives the same day
+  function pick(day, now = new Date()) {
+    const d = fromIso(day);
+    const text = d < startOfDay(now) && d.getFullYear() === now.getFullYear() ? `${label(d)} ${d.getFullYear()}` : label(d, now);
+    return { text, target: day };
   }
 
   // Relative label for a target day: { label, cls, days }
@@ -163,5 +188,5 @@ const Due = (() => {
   }
 
   const todayIso = () => iso(startOfDay(new Date()));
-  return { parse, status, describe, inBucket, lane, todayIso };
+  return { parse, pick, status, describe, inBucket, lane, todayIso };
 })();

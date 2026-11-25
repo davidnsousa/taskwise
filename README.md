@@ -60,7 +60,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - Sort the notes from the filter bar: manual, due date, title, newest, oldest or recently edited
 - Six themes from dark to light (Midnight, Dim, Dusk, Mist, Paper, Light), picked from the button next to Settings
 - The `waiting` tag asks what the note waits for, and shows it on the card
-- Due dates in plain words, shown relative to today
+- Due dates in plain words, shown relative to today, or a specific day picked from a calendar (“pick a day…” in the note panel and the right-click menu)
 - Filters by search, due date, board, section and tag
 - Notes can depend on other notes; the Graph view draws who waits on whom
 - Each board has a folded Archive: done notes go there, and any note can be archived

@@ -8,6 +8,7 @@
 //   bookmarks  every board's bookmarks in one tree, with the notes linked to each
 //   list       one dense line per note, grouped by board
 //   graph      notes that depend on others, drawn left to right
+//   activity   a year of squares shaded by what got done each day
 //
 // All of them use the filter bar like Board and Table do. Loaded after
 // app.js and uses its state and helpers (ws, ui, matches, cardHtml…).
@@ -44,7 +45,7 @@ function vCard(n, opts = {}) {
   </div>`;
 }
 // a one-line note row (List and Bookmarks views)
-function rowHtml(n, { showBoard = false } = {}) {
+function rowHtml(n, { showBoard = false, extra = "" } = {}) {
   const b = boardOf(n), s = section(b, n.sectionId), first = MD.plain((n.body || "").trim().split("\n")[0]);
   const nl = (n.links || []).filter(id => bookmark(id)).length;
   return `<div class="crow ${isDone(n) ? "is-done" : ""}" data-note="${n.id}">
@@ -52,7 +53,7 @@ function rowHtml(n, { showBoard = false } = {}) {
     <span class="t"><span class="tt">${esc(n.title || "(untitled)")}</span>${first ? `<span class="sub">${esc(first)}</span>` : ""}</span>
     ${showBoard ? `<span class="where-chip"><span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "?")}</span>` : ""}
     ${s ? `<span class="sec-chip">${esc(s.name)}</span>` : ""}
-    <span class="rmeta">${depBadge(n)}${taskBadge(n)}${tagPills(n)}${dueBadge(n)}${nl ? `<span class="nlinks" title="${nl} link${nl === 1 ? "" : "s"}">${ICON.link}${nl}</span>` : ""}</span>
+    <span class="rmeta">${extra}${depBadge(n)}${taskBadge(n)}${tagPills(n)}${dueBadge(n)}${nl ? `<span class="nlinks" title="${nl} link${nl === 1 ? "" : "s"}">${ICON.link}${nl}</span>` : ""}</span>
   </div>`;
 }
 
@@ -482,7 +483,143 @@ $("#main").addEventListener("mouseover", e => {
   $$(".gedges path[data-from]", $("#main")).forEach(p => p.classList.toggle("hl", !!id && (p.dataset.from === id || p.dataset.to === id)));
 });
 
+// ---------- 10. activity ----------
+// Like a contributions chart: one square per day, Monday at the top, shaded by
+// the notes marked done that day (n.doneAt) plus the boxes ticked (ws.activity).
+// Click a square for that day's list. The filter bar applies; done notes count
+// although they sit in the Archive. Deleted notes drop out.
+
+let actDay = null;   // the picked day, "YYYY-MM-DD" (not saved)
+const keyDate = k => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+const plural = (c, w) => `${c} ${w}${c === 1 ? "" : "s"}`;
+
+function activityByDay() {
+  const days = {};
+  const at = k => days[k] ||= { done: [], ticks: [], score: 0 };
+  for (const n of ws.notes) {
+    if (!isDone(n) || !n.doneAt || n.doneAt === 1 || !matches(n, { archive: true })) continue;
+    const d = at(dayKey(new Date(n.doneAt * 1000)));
+    d.done.push(n); d.score++;
+  }
+  for (const [k, per] of Object.entries(ws.activity || {}))
+    for (const [id, c] of Object.entries(per)) {
+      const n = note(id);
+      if (!n || !(c > 0) || !matches(n, { archive: true })) continue;
+      const d = at(k);
+      d.ticks.push({ n, c }); d.score += c;
+    }
+  return days;
+}
+// the years there's anything for (filters aside), newest first
+function activityYears() {
+  let min = new Date().getFullYear();
+  for (const n of ws.notes) if (isDone(n) && n.doneAt > 1) min = Math.min(min, new Date(n.doneAt * 1000).getFullYear());
+  for (const k of Object.keys(ws.activity || {})) min = Math.min(min, +k.slice(0, 4));
+  const ys = [];
+  for (let y = new Date().getFullYear(); y >= min; y--) ys.push(y);
+  return ys;
+}
+
+function renderActivity(main) {
+  if (noNotesYet()) { main.innerHTML = noBoardsMsg(); return; }
+  const days = activityByDay(), today = dayKey();
+  const years = activityYears();
+  let yr = vopt("actYear", "");
+  if (yr && !years.includes(+yr)) yr = "";
+  let first, last;
+  if (yr) { first = new Date(+yr, 0, 1); last = new Date(+yr, 11, 31); }
+  else { last = keyDate(today); first = new Date(last); first.setDate(first.getDate() - 364); }
+  const fk = dayKey(first), lk = dayKey(last);
+  const inRange = k => k >= fk && k <= lk && k <= today;
+
+  // the squares: columns are weeks starting on the Monday on or before `first`
+  const d = new Date(first); d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+  const cells = [], months = [];
+  let weeks = 0;
+  for (; dayKey(d) <= lk; weeks++) {
+    for (let r = 0; r < 7; r++, d.setDate(d.getDate() + 1)) {
+      const k = dayKey(d);
+      cells.push({ k, w: weeks, r, on: inRange(k), future: k > today && k <= lk && k >= fk });
+      if (d.getDate() === 1 && k >= fk && k <= lk) months.push({ w: weeks + (r ? 1 : 0), m: d.getMonth() });
+    }
+  }
+  // the first, partial month gets a label too when there's room before the next one
+  if (first.getDate() !== 1 && (!months.length || months[0].w >= 3)) months.unshift({ w: 0, m: first.getMonth() });
+
+  // totals, streaks and the shade scale, over the days shown
+  let max = 0, done = 0, ticked = 0, active = 0, run = 0, best = 0, bestDay = null;
+  for (const c of cells) {
+    if (!c.on) continue;
+    const x = days[c.k];
+    if (x?.score) {
+      active++; done += x.done.length; ticked += x.score - x.done.length;
+      run++; best = Math.max(best, run);
+      if (x.score > max) { max = x.score; bestDay = c.k; }
+    } else if (c.k !== today) run = 0;   // today with nothing yet doesn't break a streak
+  }
+  const level = s => !s ? 0 : s <= max * 0.25 ? 1 : s <= max * 0.5 ? 2 : s <= max * 0.75 ? 3 : 4;
+  const longDate = k => keyDate(k).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const shortDate = k => keyDate(k).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+  if (!actDay || !inRange(actDay)) {
+    const shown = cells.filter(c => c.on);
+    actDay = inRange(today) ? today : [...shown].reverse().find(c => days[c.k]?.score)?.k || shown.at(-1)?.k || today;
+  }
+
+  const MON = [...Array(12)].map((_, i) => new Date(2000, i, 1).toLocaleDateString(undefined, { month: "short" }));
+  const grid = `<div class="act-grid" style="--weeks:${weeks}">
+    ${months.map(m => `<span class="act-m" style="grid-column:${m.w + 2}">${MON[m.m]}</span>`).join("")}
+    ${["Mon", "Wed", "Fri"].map((t, i) => `<span class="act-wd" style="grid-row:${i * 2 + 2}">${t}</span>`).join("")}
+    ${cells.map(c => {
+      const pos = `grid-column:${c.w + 2};grid-row:${c.r + 2}`;
+      if (!c.on) return c.future ? `<span class="act-c future" style="${pos}"></span>` : "";
+      const x = days[c.k], nd = x?.done.length || 0, nt = (x?.score || 0) - nd;
+      const what = x?.score ? [nd && `${nd} done`, nt && `${nt} ticked`].filter(Boolean).join(", ") : "Nothing done";
+      return `<button class="act-c l${level(x?.score)} ${c.k === actDay ? "on" : ""} ${c.k === today ? "today" : ""}" style="${pos}" data-day="${c.k}" title="${what} on ${esc(longDate(c.k))}"></button>`;
+    }).join("")}
+  </div>`;
+
+  // the picked day
+  const x = days[actDay] || { done: [], ticks: [], score: 0 };
+  const doneIds = new Set(x.done.map(n => n.id));
+  const tickOf = id => x.ticks.find(t => t.n.id === id)?.c;
+  const chip = c => c ? `<span class="act-tick" title="${plural(c, "box")} ticked this day">${ICON.tasks}${c} ticked</span>` : "";
+  const nt = x.score - x.done.length;
+  const rows = [...sortNotes(x.done).map(n => rowHtml(n, { showBoard: true, extra: chip(tickOf(n.id)) })),
+    ...x.ticks.filter(t => !doneIds.has(t.n.id)).sort((a, b) => b.c - a.c).map(t => rowHtml(t.n, { showBoard: true, extra: chip(t.c) }))];
+  const dayHtml = `<div class="act-day">
+    <div class="act-day-head"><h2>${esc(longDate(actDay))}${actDay === today ? ` <span class="hint">today</span>` : ""}</h2>
+      <span class="hint">${x.score ? [x.done.length && `${x.done.length} done`, nt && `${nt} ticked`].filter(Boolean).join(" · ") : ""}</span></div>
+    ${rows.length ? `<div class="act-rows">${rows.join("")}</div>` : `<div class="lane-empty">Nothing marked done or ticked${actDay === today ? " yet today" : " this day"}.</div>`}
+  </div>`;
+
+  const span = yr ? `in ${yr}` : "in the past year";
+  keepScroll(main, () => {
+    main.innerHTML = `<div class="vwrap activity">${vbar(`
+      <select data-vopt="actYear" title="Which year to show">
+        <option value="">Past year</option>${years.map(y => `<option value="${y}" ${String(y) === String(yr) ? "selected" : ""}>${y}</option>`).join("")}
+      </select>
+      <span class="act-sum"><b>${done}</b> done · <b>${ticked}</b> ticked ${span}</span>
+      <span class="spacer"></span>
+      <span class="hint">${plural(active, "active day")}${best > 1 ? ` · longest streak ${best} days` : ""}${bestDay ? ` · best ${shortDate(bestDay)} (${max})` : ""}</span>`)}
+      <div class="act-card">${grid}
+        <div class="act-foot"><span class="hint">Notes marked done and boxes ticked each day${filtersActive() ? ", for the notes the filters show" : ""}.</span><span class="spacer"></span>
+          <span class="act-legend">Less${[0, 1, 2, 3, 4].map(l => `<span class="act-c l${l}"></span>`).join("")}More</span></div>
+      </div>
+      ${dayHtml}
+    </div>`;
+  });
+}
+$("#main").addEventListener("click", e => {
+  if (ui.view !== "activity") return;
+  const c = e.target.closest("[data-day]");
+  if (!c) return;
+  actDay = c.dataset.day;
+  renderMain();
+});
+
 const VIEWS = {
+  activity: { render: renderActivity },
   graph: { render: renderGraph },
   agenda: { render: renderAgenda, drop: dropAgenda },
   focus: { render: renderFocus },

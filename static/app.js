@@ -517,7 +517,8 @@ function render() { renderFilters(); renderSidebar(); renderMain(); renderToday(
 // ---------- today's progress (top right) ----------
 // n.doneAt is when a note got its done tag, set here at save time so every way
 // of marking done counts; ws.activity[day][noteId] is how many boxes were
-// ticked on that note that day (unticking takes one off). Kept two weeks.
+// ticked on that note that day (unticking takes one off). Kept for good: the
+// Activity view draws it (a few numbers a day).
 const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const daysAgo = k => { const d = new Date(); d.setDate(d.getDate() - k); return dayKey(d); };
 function stampDone() {
@@ -532,8 +533,7 @@ function logTick(n, before, after) {
   const act = ws.activity ||= {}, day = act[dayKey()] ||= {};
   day[n.id] = Math.max(0, (day[n.id] || 0) + now - was);
   if (!day[n.id]) delete day[n.id];
-  const keep = daysAgo(14);
-  for (const k of Object.keys(act)) if (k < keep || !Object.keys(act[k]).length) delete act[k];
+  for (const k of Object.keys(act)) if (!Object.keys(act[k]).length) delete act[k];
 }
 // what got done on a day: done notes and ticked boxes
 function dayStats(key) {
@@ -1552,9 +1552,9 @@ document.addEventListener("keydown", e => {
   const o = $(".overlay");
   if (e.key === "Escape" && o) { e.preventDefault(); o._close?.(); return; }
   if (e.key === "/" && !o && !e.target.matches("input, textarea, select")) { e.preventDefault(); $("#search").focus(); }
-  // 1-8 pick a view (in the order of the buttons at the top)
-  if (/^[1-9]$/.test(e.key) && !o && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.matches("input, textarea, select, [contenteditable]")) {
-    const b = $$("#viewSeg button")[+e.key - 1];
+  // 1-9 and 0 pick a view (in the order of the buttons at the top)
+  if (/^[0-9]$/.test(e.key) && !o && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.matches("input, textarea, select, [contenteditable]")) {
+    const b = $$("#viewSeg button")[(+e.key || 10) - 1];
     if (b) { ui.view = b.dataset.view; saveSettings(); render(); }
   }
 });

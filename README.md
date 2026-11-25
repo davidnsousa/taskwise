@@ -66,7 +66,8 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - Each board has a folded Archive: done notes go there, and any note can be archived
 
 **Views**
-- Board, List, Table, Agenda, Focus, Tags, Sections, Links and Graph
+- Board, List, Table, Agenda, Focus, Tags, Sections, Links, Graph and Activity
+- Activity: a year of squares, one per day, shaded by notes done and boxes ticked; click a day to see what they were
 
 **Links**
 - Web links and local files on each board, in nested folders

@@ -36,7 +36,7 @@ function whereHtml(n, { showBoard = true, showSection = true } = {}) {
 }
 function vCard(n, opts = {}) {
   return `<div class="card ${isDone(n) ? "is-done" : ""} ${opts.big ? "big" : ""}" draggable="${opts.drag === false ? "false" : "true"}" data-note="${n.id}">
-    <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
+    <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>${noteMoreBtn}
     ${whereHtml(n, opts)}
     <div class="title">${esc(n.title || "(untitled)")}</div>
     ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
@@ -53,7 +53,7 @@ function rowHtml(n, { showBoard = false, extra = "" } = {}) {
     <span class="t"><span class="tt">${esc(n.title || "(untitled)")}</span>${first ? `<span class="sub">${esc(first)}</span>` : ""}</span>
     ${showBoard ? `<span class="where-chip"><span class="dot" style="background:${b?.color || "var(--faint)"}"></span>${esc(b?.name || "?")}</span>` : ""}
     ${s ? `<span class="sec-chip">${esc(s.name)}</span>` : ""}
-    <span class="rmeta">${extra}${depBadge(n)}${taskBadge(n)}${tagPills(n)}${dueBadge(n)}${nl ? `<span class="nlinks" title="${nl} link${nl === 1 ? "" : "s"}">${ICON.link}${nl}</span>` : ""}</span>
+    <span class="rmeta">${extra}${depBadge(n)}${taskBadge(n)}${tagPills(n)}${dueBadge(n)}${nl ? `<span class="nlinks" title="${nl} link${nl === 1 ? "" : "s"}">${ICON.link}${nl}</span>` : ""}</span>${noteMoreBtn}
   </div>`;
 }
 
@@ -72,7 +72,7 @@ function emptyHtml(title, text) {
   return `<div class="empty-board"><h2>${title}</h2><p>${text}</p></div>`;
 }
 const noNotesYet = () => !awakeNotes().length;
-const noBoardsMsg = () => emptyHtml("No notes yet", "Add notes on the <b>Board</b> view; they show up here too.");
+const noBoardsMsg = () => emptyHtml("No tasks yet", "Add tasks on the <b>Board</b> view; they show up here too.");
 
 // keep the scroll position of the view and of each lane across re-renders
 function keepScroll(main, paint) {
@@ -117,7 +117,7 @@ function renderAgenda(main) {
         key: l.key, title: l.label, color: l.color, notes: (by[l.key] || []).sort(byDue),
         drop: l.key === "overdue" ? "" : l.set ? `Drop here: due “${l.set}”` : "Drop here to clear the due",
         foldKey: l.key === "none" ? "agenda:none" : "",
-        hint: l.key === "none" ? "Every note has a due" : "Nothing due",
+        hint: l.key === "none" ? "Every task has a due" : "Nothing due",
       })).join("")}</div></div>`;
   });
 }
@@ -154,12 +154,12 @@ function renderFocus(main) {
     main.innerHTML = `<div class="vwrap focus">
       ${vbar(`<span class="focus-sum">${total ? `<b>${total}</b> to do` : "All clear"}${doneToday.length ? ` · <b>${doneToday.length}</b> done today` : ""}</span>
         <span class="spacer"></span>
-        <label class="vopt" title="Notes with this tag are in Focus whatever their due">Also tagged <select data-vopt="focusTag"><option value="">(none)</option>${tagOpts}</select></label>`)}
+        <label class="vopt" title="Tasks with this tag are in Focus whatever their due">Also tagged <select data-vopt="focusTag"><option value="">(none)</option>${tagOpts}</select></label>`)}
       ${block("overdue", "Overdue", "is-overdue", lanes.overdue)}
       ${block("today", "Today", "is-today", lanes.today)}
       ${tag ? block("urgent", `Tagged #${esc(tag)}`, "is-tag", lanes.urgent) : ""}
       ${total ? "" : `<div class="focus-clear">${ICON.check}<div><b>Nothing overdue, due today${tag ? ` or tagged #${esc(tag)}` : ""}.</b>
-        <div class="muted">${tomorrow ? `${tomorrow} note${tomorrow === 1 ? " is" : "s are"} due tomorrow — see the Agenda.` : "Enjoy it."}</div></div></div>`}
+        <div class="muted">${tomorrow ? `${tomorrow} task${tomorrow === 1 ? " is" : "s are"} due tomorrow — see the Agenda.` : "Enjoy it."}</div></div></div>`}
       ${doneToday.length ? `<div class="focus-block is-done-today"><div class="focus-head"><h2>Done today</h2><span class="n">${doneToday.length}</span></div>
         <div class="focus-done">${doneToday.map(n => rowHtml(n, { showBoard: true })).join("")}</div></div>` : ""}
     </div>`;
@@ -180,17 +180,17 @@ function renderTags(main) {
     const list = open.filter(n => (n.tags || []).includes(t.name));
     if (!list.length && filtered) continue;
     cols.push(laneHtml({ key: "t:" + t.name, title: "#" + t.name, color: t.color, notes: list,
-      drop: `Drop here to tag it #${t.name} (moves it from the column it came from; hold Ctrl to keep that tag too)`, hint: "No open notes with this tag" }));
+      drop: `Drop here to tag it #${t.name} (moves it from the column it came from; hold Ctrl to keep that tag too)`, hint: "No open tasks with this tag" }));
   }
   const untagged = open.filter(n => !(n.tags || []).some(x => x !== "done"));
-  cols.push(laneHtml({ key: "none", title: "No tag", color: "var(--border-strong)", notes: untagged, drop: "Drop here to remove its tags", hint: "Every open note has a tag" }));
+  cols.push(laneHtml({ key: "none", title: "No tag", color: "var(--border-strong)", notes: untagged, drop: "Drop here to remove its tags", hint: "Every open task has a tag" }));
   if (ui.tags.done !== -1) {
     const done = shown.filter(isDone);
     cols.push(laneHtml({ key: "done", title: "Done", color: "var(--ok)", notes: done, drop: "Drop here to mark it done (urgent and waiting tags are removed)",
       foldKey: "tags:done", foldDefault: true, hint: "Nothing done yet" }));
   }
   keepScroll(main, () => {
-    main.innerHTML = `<div class="vwrap">${vbar(`<span class="hint">A note with several tags shows in each of their columns. Drag a card to another column to swap the tag; hold <b>Ctrl</b> while dropping to add it instead.</span>`)}
+    main.innerHTML = `<div class="vwrap">${vbar(`<span class="hint">A task with several tags shows in each of their columns. Drag a card to another column to swap the tag; hold <b>Ctrl</b> while dropping to add it instead.</span>`)}
       <div class="lanes">${cols.join("")}</div></div>`;
   });
 }
@@ -246,7 +246,7 @@ function renderSections(main) {
   }).join("");
   keepScroll(main, () => {
     main.innerHTML = `<div class="vwrap">${vbar(`<span class="hint">Sections with the same name on different boards, side by side. Drag a card onto another section to move it there.</span>`)}
-      <div class="lanes">${lanes || `<div class="lane-empty">No notes match the filters.</div>`}</div></div>`;
+      <div class="lanes">${lanes || `<div class="lane-empty">No tasks match the filters.</div>`}</div></div>`;
   });
 }
 function dropSections(n, lane, sub) {
@@ -296,7 +296,7 @@ function renderBookmarks(main) {
         <a href="${esc(x.url)}" draggable="false" target="_blank" rel="noopener noreferrer" title="${esc(x.url)}">${fav(x.url)}<span class="bt">${esc(x.title)}</span></a>
         <span class="host">${esc(hostOf(x.url))}</span>
         <span class="spacer"></span>
-        ${linked.length ? `<span class="lc" title="${linked.length} note(s) linked">${linked.length}</span>` : ""}
+        ${linked.length ? `<span class="lc" title="${linked.length} task(s) linked">${linked.length}</span>` : ""}
         <button class="ghost icon lnk-more" data-lnk="${x.id}" title="Link menu" draggable="false">${ICON.more}</button>
       </div>
       ${showNotes && list.length ? `<div class="bmv-notes">${sortNotes(list).map(n => rowHtml(n, { showBoard: n.boardId !== b.id })).join("")}</div>` : ""}
@@ -329,8 +329,8 @@ function renderBookmarks(main) {
   }).join("");
   const any = ws.boards.some(b => !asleep(b) && (b.bookmarks || []).length);
   keepScroll(main, () => {
-    main.innerHTML = `<div class="vwrap bmv">${vbar(`<span class="hint">Every board's links, with the notes linked to each.</span><span class="spacer"></span>
-        ${optCheck("bmNotes", true, "Show notes")}${optCheck("bmOnlyLinked", false, "Only links with notes")}`)}
+    main.innerHTML = `<div class="vwrap bmv">${vbar(`<span class="hint">Every board's links, with the tasks linked to each.</span><span class="spacer"></span>
+        ${optCheck("bmNotes", true, "Show tasks")}${optCheck("bmOnlyLinked", false, "Only links with tasks")}`)}
       ${blocks || (any ? `<div class="lane-empty">No links match.</div>` : emptyHtml("No links yet", "Add them from the <b>Links</b> fold-out at the top of each board in the <b>Board</b> view."))}
     </div>`;
   });
@@ -358,7 +358,7 @@ function renderList(main) {
     </section>`;
   }).join("");
   keepScroll(main, () => {
-    main.innerHTML = `<div class="vwrap list">${blocks || `<div class="lane-empty">No notes match the filters.</div>`}</div>`;
+    main.innerHTML = `<div class="vwrap list">${blocks || `<div class="lane-empty">No tasks match the filters.</div>`}</div>`;
   });
 }
 
@@ -428,11 +428,11 @@ function renderGraph(main) {
   }).join("");
 
   const empty = !all.length
-    ? `<div class="lane-empty">No dependencies yet. Open a note and use <b>+ depends on</b>, or right-click a note › Depends on…</div>`
+    ? `<div class="lane-empty">No dependencies yet. Open a task and use <b>+ depends on</b>, or right-click a task › Depends on…</div>`
     : `<div class="lane-empty">No dependencies match the filters.</div>`;
   keepScroll(main, () => {
     main.innerHTML = `<div class="vwrap graph">
-      ${vbar(`${optCheck("graphDone", true, "show done notes")}<span class="spacer"></span><span class="hint">prerequisites on the left · an arrow points to the note that waits</span>`)}
+      ${vbar(`${optCheck("graphDone", true, "show done tasks")}<span class="spacer"></span><span class="hint">prerequisites on the left · an arrow points to the task that waits</span>`)}
       ${html || empty}</div>`;
   });
   drawGraphEdges(main);
@@ -441,7 +441,7 @@ function renderGraph(main) {
 function graphNode(n) {
   const blocked = !isDone(n) && openDeps(n).length;
   return `<div class="card gnode ${isDone(n) ? "is-done" : ""} ${blocked ? "blocked" : ""}" data-note="${n.id}">
-    <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
+    <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>${noteMoreBtn}
     ${whereHtml(n)}
     <div class="title">${esc(n.title || "(untitled)")}</div>
     <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}</div>
@@ -574,7 +574,7 @@ function renderActivity(main) {
       const pos = `grid-column:${c.w + 2};grid-row:${c.r + 2}`;
       if (!c.on) return c.future ? `<span class="act-c future" style="${pos}"></span>` : "";
       const x = days[c.k], nd = x?.done.length || 0, nt = (x?.score || 0) - nd;
-      const what = x?.score ? [nd && `${nd} done`, nt && `${nt} ticked`].filter(Boolean).join(", ") : "Nothing done";
+      const what = x?.score ? [nd && plural(nd, "task"), nt && plural(nt, "subtask")].filter(Boolean).join(", ") : "Nothing done";
       return `<button class="act-c l${level(x?.score)} ${c.k === actDay ? "on" : ""} ${c.k === today ? "today" : ""}" style="${pos}" data-day="${c.k}" title="${what} on ${esc(longDate(c.k))}"></button>`;
     }).join("")}
   </div>`;
@@ -583,14 +583,14 @@ function renderActivity(main) {
   const x = days[actDay] || { done: [], ticks: [], score: 0 };
   const doneIds = new Set(x.done.map(n => n.id));
   const tickOf = id => x.ticks.find(t => t.n.id === id)?.c;
-  const chip = c => c ? `<span class="act-tick" title="${plural(c, "box")} ticked this day">${ICON.tasks}${c} ticked</span>` : "";
+  const chip = c => c ? `<span class="act-tick" title="${plural(c, "subtask")} done this day">${ICON.tasks}${plural(c, "subtask")}</span>` : "";
   const nt = x.score - x.done.length;
   const rows = [...sortNotes(x.done).map(n => rowHtml(n, { showBoard: true, extra: chip(tickOf(n.id)) })),
     ...x.ticks.filter(t => !doneIds.has(t.n.id)).sort((a, b) => b.c - a.c).map(t => rowHtml(t.n, { showBoard: true, extra: chip(t.c) }))];
   const dayHtml = `<div class="act-day">
     <div class="act-day-head"><h2>${esc(longDate(actDay))}${actDay === today ? ` <span class="hint">today</span>` : ""}</h2>
-      <span class="hint">${x.score ? [x.done.length && `${x.done.length} done`, nt && `${nt} ticked`].filter(Boolean).join(" · ") : ""}</span></div>
-    ${rows.length ? `<div class="act-rows">${rows.join("")}</div>` : `<div class="lane-empty">Nothing marked done or ticked${actDay === today ? " yet today" : " this day"}.</div>`}
+      <span class="hint">${x.score ? [x.done.length && plural(x.done.length, "task"), nt && plural(nt, "subtask")].filter(Boolean).join(" · ") : ""}</span></div>
+    ${rows.length ? `<div class="act-rows">${rows.join("")}</div>` : `<div class="lane-empty">No tasks or subtasks done${actDay === today ? " yet today" : " this day"}.</div>`}
   </div>`;
 
   const span = yr ? `in ${yr}` : "in the past year";
@@ -599,11 +599,11 @@ function renderActivity(main) {
       <select data-vopt="actYear" title="Which year to show">
         <option value="">Past year</option>${years.map(y => `<option value="${y}" ${String(y) === String(yr) ? "selected" : ""}>${y}</option>`).join("")}
       </select>
-      <span class="act-sum"><b>${done}</b> done · <b>${ticked}</b> ticked ${span}</span>
+      <span class="act-sum"><b>${done}</b> task${done === 1 ? "" : "s"} · <b>${ticked}</b> subtask${ticked === 1 ? "" : "s"} done ${span}</span>
       <span class="spacer"></span>
       <span class="hint">${plural(active, "active day")}${best > 1 ? ` · longest streak ${best} days` : ""}${bestDay ? ` · best ${shortDate(bestDay)} (${max})` : ""}</span>`)}
       <div class="act-card">${grid}
-        <div class="act-foot"><span class="hint">Notes marked done and boxes ticked each day${filtersActive() ? ", for the notes the filters show" : ""}.</span><span class="spacer"></span>
+        <div class="act-foot"><span class="hint">Tasks and subtasks done each day${filtersActive() ? ", for the tasks the filters show" : ""}.</span><span class="spacer"></span>
           <span class="act-legend">Less${[0, 1, 2, 3, 4].map(l => `<span class="act-c l${l}"></span>`).join("")}More</span></div>
       </div>
       ${dayHtml}

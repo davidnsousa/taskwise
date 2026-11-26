@@ -1,8 +1,8 @@
 # taskwise
 
-Project boards in your browser. taskwise keeps notes in boards and groups, with
+Project boards in your browser. taskwise keeps tasks in boards and groups, with
 links, tags and due dates you type in plain words ("next week", "before the
-15th"). The same notes can be seen as a table, an agenda, a focus list and other
+15th"). The same tasks can be seen as a table, an agenda, a focus list and other
 views.
 
 ![taskwise board](docs/board.png)
@@ -52,26 +52,28 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - Groups, boards and sections, with drag and drop
 - Collapse, hide or hibernate groups and boards
 
-**Notes**
-- Add with the + on any section; the new note opens straight in the note panel
-- Notes are Markdown with a `# Title` first line, rendered on the cards, with tickable `- [ ]` checkboxes; two or more count as subtasks, shown as a `2/5` chip (green once all are ticked) and a thin bar along the card
-- A badge at the top right counts what you got done today (notes marked done, boxes ticked) and opens a short list of them; it lights up on your best day of the week
-- The note panel shows the Markdown with a rendered preview under it that folds away
-- Sort the notes from the filter bar: manual, due date, title, newest, oldest or recently edited
+**Tasks**
+- Add with the + on any section; the new task opens straight in the task panel
+- Tasks are Markdown with a `# Title` first line, rendered on the cards; `- [ ]` checkboxes are subtasks, and two or more show as a `2/5` chip (green once all are done) and a green progress bar along the card
+- A badge at the top right shows one number for what you got done today, tasks and subtasks together; click it to see which ones; it lights up on your best day of the week
+- Each task has a ⋯ button with the same menu as its right-click; on boards a card shows its whole text
+- The task panel shows the Markdown with a rendered preview under it that folds away
+- Sort the tasks from the filter bar: manual, due date, title, newest, oldest or recently edited
 - Six themes from dark to light (Midnight, Dim, Dusk, Mist, Paper, Light), picked from the button next to Settings
-- The `waiting` tag asks what the note waits for, and shows it on the card
-- Due dates in plain words, shown relative to today, or a specific day picked from a calendar (“pick a day…” in the note panel and the right-click menu)
+- The `waiting` tag asks what the task waits for, and shows it on the card
+- Due dates in plain words, shown relative to today, or a specific day picked from a calendar (“pick a day…” in the task panel and the right-click menu)
 - Filters by search, due date, board, section and tag
-- Notes can depend on other notes; the Graph view draws who waits on whom
-- Each board has a folded Archive: done notes go there, and any note can be archived
+- Tasks can depend on other tasks; the Graph view draws who waits on whom
+- Each board has a folded Archive: done tasks go there, and any task can be archived
 
 **Views**
 - Board, List, Table, Agenda, Focus, Tags, Sections, Links, Graph and Activity
-- Activity: a year of squares, one per day, shaded by notes done and boxes ticked; click a day to see what they were
+- Activity: a year of squares, one per day, shaded by tasks and subtasks done; click a day to see what they were
 
 **Links**
 - Web links and local files on each board, in nested folders
-- Drag a link onto a note on any board to attach it
+- Drag a link onto a task on any board to attach it
+- Every link has a menu from its ⋯ or a right-click, links typed in a task's text included
 
 ## Network use
 

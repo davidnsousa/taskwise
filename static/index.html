@@ -13,14 +13,14 @@
   <h1><img class="logo" src="/static/icon.svg" alt="">Taskwise</h1>
   <div class="seg" id="viewSeg">
     <button data-view="board" title="Board (1)">Board</button>
-    <button data-view="list" title="List: one line per note (2)">List</button>
+    <button data-view="list" title="List: one line per task (2)">List</button>
     <button data-view="table" title="Table (3)">Table</button>
-    <button data-view="agenda" title="Agenda: notes by when they're due (4)">Agenda</button>
+    <button data-view="agenda" title="Agenda: tasks by when they're due (4)">Agenda</button>
     <button data-view="focus" title="Focus: overdue, today and urgent (5)">Focus</button>
     <button data-view="tags" title="Tags: one column per tag (6)">Tags</button>
     <button data-view="sections" title="Sections: same-named sections of every board side by side (7)">Sections</button>
-    <button data-view="bookmarks" title="Links: every board's links with their notes; drag to organize (8)">Links</button>
-    <button data-view="graph" title="Graph: which notes depend on which (9)">Graph</button>
+    <button data-view="bookmarks" title="Links: every board's links with their tasks; drag to organize (8)">Links</button>
+    <button data-view="graph" title="Graph: which tasks depend on which (9)">Graph</button>
     <button data-view="activity" title="Activity: what got done each day, over the year (0)">Activity</button>
   </div>
   <button id="addBoardBtn" class="primary"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> New board</button>
@@ -32,7 +32,7 @@
   <button id="settingsBtn" class="ghost" title="Settings"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg> Settings</button>
 </header>
 <div id="filters">
-  <input id="search" type="search" placeholder="Search notes…  ( / )">
+  <input id="search" type="search" placeholder="Search tasks…  ( / )">
   <select id="dueFilter" title="Filter by due">
     <option value="all">Any due</option>
     <option value="overdue">Overdue</option>
@@ -45,7 +45,7 @@
   </select>
   <select id="boardFilter" title="Filter by board"></select>
   <select id="sectionFilter" title="Filter by section - sections with the same name on different boards show together"></select>
-  <select id="sortPick" title="Order of the notes (Table sorts by its columns)"></select>
+  <select id="sortPick" title="Order of the tasks (Table sorts by its columns)"></select>
   <div class="tag-filters" id="tagFilters"></div>
   <span id="activeChips"></span>
   <button id="clearFilters" class="ghost">Clear filters</button>

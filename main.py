@@ -1,4 +1,4 @@
-"""taskwise - project boards with notes, bookmarks, tags and easy due dates.
+"""taskwise - project boards with tasks, bookmarks, tags and easy due dates.
 
 A local FastAPI server; the page runs in the browser. The whole board is one
 JSON file (board.json) in a folder you choose on first run - pick a synced

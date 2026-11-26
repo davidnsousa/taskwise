@@ -91,7 +91,7 @@ async function loadBoard() {
   if (merged) changed = true;
   if (sinkDone()) changed = true;
   render();
-  if (merged) toast(`Merged ${merged} duplicate link${merged === 1 ? "" : "s"} — notes that linked them now share one.`, 7000);
+  if (merged) toast(`Merged ${merged} duplicate link${merged === 1 ? "" : "s"} — tasks that linked them now share one.`, 7000);
   if (changed) save();
 }
 
@@ -438,9 +438,9 @@ function renderFilters() {
   $("#tagFilters").innerHTML = ws.tags.filter(t => used.has(t.name) || ui.tags[t.name]).map(t => {
     const mode = ui.tags[t.name];
     const cls = mode === 1 ? "inc" : mode === -1 ? "exc" : "";
-    const title = mode === 1 ? "showing only notes with this tag - click to hide them instead" : mode === -1 ? "hiding notes with this tag - click to clear" : "click: only notes with this tag";
+    const title = mode === 1 ? "showing only tasks with this tag - click to hide them instead" : mode === -1 ? "hiding tasks with this tag - click to clear" : "click: only tasks with this tag";
     return `<button class="ftag ${cls}" data-tag="${esc(t.name)}" style="--tc:${t.color}" title="${title}"><span class="sw"></span>${esc(t.name)}</button>`;
-  }).join("") || `<span class="hint">tags you add to notes show up here as filters</span>`;
+  }).join("") || `<span class="hint">tags you add to tasks show up here as filters</span>`;
 
   const chips = [];
   if (ui.bookmark) {
@@ -455,7 +455,7 @@ function renderFilters() {
 function renderCounts() {
   const awake = awakeNotes();
   const shown = awake.filter(matches).length;
-  $("#count").textContent = filtersActive() ? `${shown} of ${awake.length} notes` : `${awake.length} notes`;
+  $("#count").textContent = filtersActive() ? `${shown} of ${awake.length} tasks` : `${awake.length} tasks`;
   $("#clearFilters").style.display = filtersActive() ? "" : "none";
   // what's out of sight, so it's never forgotten
   const hidden = ws.boards.filter(hiddenB).length, sleeping = ws.boards.filter(asleep).length;
@@ -545,30 +545,30 @@ function dayStats(key) {
 function renderToday() {
   const el = $("#todayBtn"); if (!el) return;
   const t = dayStats(dayKey()), score = t.done.length + t.ticked;
-  const parts = [];
-  if (t.done.length) parts.push(`${t.done.length} done`);
-  if (t.ticked) parts.push(`${t.ticked} ticked`);
   // a good day: more than any of the six before it, and at least a few things
   let best = score >= 3;
   for (let k = 1; best && k < 7; k++) { const p = dayStats(daysAgo(k)); if (p.done.length + p.ticked >= score) best = false; }
   el.classList.toggle("some", score > 0);
   el.classList.toggle("best", best);
-  // the long label, and a short one for narrow windows (see app.css)
-  el.innerHTML = `${best ? ICON.flame : score ? ICON.check : ICON.sun}<span class="tl">${score ? parts.join(" · ") : "Today: nothing yet"}</span>${score ? `<span class="ts">${score}</span>` : ""}`;
-  el.title = score ? `Today: ${parts.join(", ")}${best ? ", your best day this week" : ""}` : "Notes you mark done and boxes you tick today show up here";
+  // one number for tasks and subtasks together; the breakdown is in the menu.
+  // A long label, and a short one for narrow windows (see app.css)
+  el.innerHTML = `${best ? ICON.flame : score ? ICON.check : ICON.sun}<span class="tl">${score ? `${score} done` : "Today: nothing yet"}</span>${score ? `<span class="ts">${score}</span>` : ""}`;
+  el.title = score ? "Done today - click to see what" : "Tasks and subtasks you finish today show up here";
 }
+const nDone = (c, one) => `${c} ${one}${c === 1 ? "" : "s"}`;
 $("#todayBtn").onclick = e => {
   const t = dayStats(dayKey());
   const row = (n, extra) => `<button data-goto="${n.id}">${isDone(n) ? ICON.check : ICON.tasks}<span class="today-t">${esc(n.title || "(untitled)")}</span>${extra ? `<span class="today-x">${extra}</span>` : ""}</button>`;
   const doneIds = new Set(t.done.map(n => n.id));
-  const rows = [...t.done.map(n => { const c = t.ticks.find(x => x.n.id === n.id)?.c; return row(n, c ? `${c} ticked` : ""); }),
-    ...t.ticks.filter(x => !doneIds.has(x.n.id)).map(x => row(x.n, `${x.c} ticked`))];
+  const rows = [...t.done.map(n => { const c = t.ticks.find(x => x.n.id === n.id)?.c; return row(n, c ? `+ ${nDone(c, "subtask")}` : "task"); }),
+    ...t.ticks.filter(x => !doneIds.has(x.n.id)).map(x => row(x.n, nDone(x.c, "subtask")))];
   const y = dayStats(daysAgo(1));
-  let week = 0; for (let k = 0; k < 7; k++) week += dayStats(daysAgo(k)).done.length;
+  let week = 0; for (let k = 0; k < 7; k++) { const d = dayStats(daysAgo(k)); week += d.done.length + d.ticked; }
   const best = e.currentTarget.classList.contains("best");
-  popMenu(e.currentTarget, `<div class="menu-label">Today${best ? " · best day this week" : ""}</div>
-    ${rows.join("") || `<div class="today-empty">Nothing yet. Mark a note done or tick a box and it shows up here.</div>`}
-    <hr><div class="today-foot">Yesterday ${y.done.length} done${y.ticked ? ` · ${y.ticked} ticked` : ""} · last 7 days ${week} done</div>`,
+  const sum = [t.done.length ? nDone(t.done.length, "task") : "", t.ticked ? nDone(t.ticked, "subtask") : ""].filter(Boolean).join(" · ");
+  popMenu(e.currentTarget, `<div class="menu-label">Today${sum ? ` · ${sum}` : ""}${best ? " · best day this week" : ""}</div>
+    ${rows.join("") || `<div class="today-empty">Nothing yet. Mark a task done or tick a subtask and it shows up here.</div>`}
+    <hr><div class="today-foot">Yesterday ${y.done.length + y.ticked} done · last 7 days ${week} done</div>`,
     d => { if (d.goto) openNote(note(d.goto)); });
 };
 setInterval(renderToday, 5 * 60 * 1000);   // so "today" rolls over at midnight
@@ -597,7 +597,7 @@ function taskInfo(n) {
 function taskBadge(n) {
   const t = taskInfo(n); if (!t) return "";
   const all = t.done === t.total;
-  return `<span class="tasks-badge ${all ? "all" : ""}" title="${t.done} of ${t.total} subtasks ticked">${ICON.tasks}${t.done}/${t.total}</span>`;
+  return `<span class="tasks-badge ${all ? "all" : ""}" title="${t.done} of ${t.total} subtasks done">${ICON.tasks}${t.done}/${t.total}</span>`;
 }
 // a thin bar along the bottom of a card
 function taskBar(n) {
@@ -651,9 +651,9 @@ function linkMenu(x, anchor, n) {
   popMenu(anchor, `
     <button data-m="open">${ICON.link} Open</button>
     ${local ? `<button data-m="reveal">${ICON.folder} Open containing folder</button>` : ""}
-    <button data-m="edit">${ICON.edit} Edit…</button>
+    ${x.board ? `<button data-m="edit">${ICON.edit} Edit…</button>` : ""}
     <button data-m="copy">${ICON.copy} Copy ${local ? "path" : "address"}</button>
-    <hr>${n ? `<button data-m="remove" class="danger">${ICON.x} Remove from note</button>` : `<button data-m="delete" class="danger">${ICON.x} Delete link</button>`}`, d => {
+    ${n ? `<hr><button data-m="remove" class="danger">${ICON.x} Remove from task</button>` : x.board ? `<hr><button data-m="delete" class="danger">${ICON.x} Delete link</button>` : ""}`, d => {
     switch (d.m) {
       case "open":
         if (local) openLocal(x.b.url);
@@ -667,7 +667,7 @@ function linkMenu(x, anchor, n) {
         n.links = (n.links || []).filter(id => id !== x.b.id); n.updated = nowSec();
         save(); render();
         ov?._refresh?.();
-        offerUndo(`Removed “${esc(x.b.title)}” from “${esc(n.title || "note")}”. It's still in ${esc(x.board.name)}'s Links.`, snapshot);
+        offerUndo(`Removed “${esc(x.b.title)}” from “${esc(n.title || "task")}”. It's still in ${esc(x.board.name)}'s Links.`, snapshot);
         break;
       }
       case "delete": {
@@ -683,8 +683,18 @@ function linkMenu(x, anchor, n) {
   });
 }
 // the ⋯ button, or a right-click, on any link
-const linkTarget = t => t.closest?.(".lnk-more, .lnk-wrap, .bm-list li[data-bm], .bmv-row[data-bm]");
+const linkTarget = t => t.closest?.(".lnk-more, .lnk-wrap, .bm-list li[data-bm], .bmv-row[data-bm], .md a[href]");
 function linkMenuFrom(el, at) {
+  // a link in a task's Markdown: the saved link with that address if there is
+  // one, else just the address (open and copy only)
+  if (el.matches(".md a[href]")) {
+    const url = el.getAttribute("href");
+    let x = null;
+    for (const b of ws.boards) { const y = (b.bookmarks || []).find(y => urlKey(y.url) === urlKey(url)); if (y) { x = { b: y, board: b }; break; } }
+    x ||= { b: { url, title: el.textContent }, board: null };
+    linkMenu(x, at, null);
+    return true;
+  }
   const host = el.closest(".lnk-wrap") ? el.closest(".lnk-wrap").querySelector(".lnk-more") : el.closest("[data-bm]");
   const id = host?.dataset.lnk || host?.dataset.bm;
   const x = id && bookmark(id); if (!x) return false;
@@ -707,7 +717,7 @@ document.addEventListener("contextmenu", e => {
 
 function cardHtml(n) {
   return `<div class="card ${isDone(n) ? "is-done" : ""}" draggable="true" data-note="${n.id}">
-    <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>
+    <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>${noteMoreBtn}
     <div class="title">${esc(n.title || "(untitled)")}</div>
     ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
     <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
@@ -733,7 +743,7 @@ function bmTree(b, parentId, depth) {
     const c = notesLinkedTo(x.id).length;
     html += `<li data-bm="${x.id}" draggable="true" style="--d:${depth}" class="${ui.bookmark === x.id ? "hl" : ""}">
       <a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.url)}">${fav(x.url)}<span>${esc(x.title)}</span></a>
-      ${c ? `<button class="lc" data-act="filter-bm" title="show the ${c} note(s) linked to this">${c}</button>` : ""}
+      ${c ? `<button class="lc" data-act="filter-bm" title="show the ${c} task(s) linked to this">${c}</button>` : ""}
       <button class="ghost icon lnk-more" data-lnk="${x.id}" title="Link menu" draggable="false">${ICON.more}</button></li>`;
   }
   if (parentId && !folders.length && !items.length) html += `<li class="bm-empty" style="--d:${depth}">Empty folder</li>`;
@@ -777,21 +787,21 @@ function columnHtml(b) {
         const total = notes.filter(n => (n.sectionId || null) === id).length;
         const folded = sec ? sec.collapsed : b.generalCollapsed;
         return `<div class="section ${sec ? "" : "general"} ${folded ? "collapsed" : ""}" data-section="${sec ? sec.id : ""}">
-          <div class="sec-head" data-act="toggle-sec" draggable="true" title="${sec ? "" : "Notes that aren't in any other section · "}drag to move the section">
+          <div class="sec-head" data-act="toggle-sec" draggable="true" title="${sec ? "" : "Tasks that aren't in any other section · "}drag to move the section">
             <span class="arrow">${ICON.chevron}</span><span class="sec-name">${sec ? esc(sec.name) : "General"}</span>
             <span class="n">${list.length === total ? total : `${list.length}/${total}`}</span>
-            <button class="ghost icon" data-act="sec-add" title="Add a note">${ICON.plusSm}</button>
+            <button class="ghost icon" data-act="sec-add" title="Add a task">${ICON.plusSm}</button>
             ${sec ? `<button class="ghost icon" data-act="sec-menu" title="Section menu">${ICON.more}</button>` : ""}
           </div>
           <div class="notes" data-section="${sec ? sec.id : ""}">${list.map(cardHtml).join("")}</div>
         </div>`;
       }).join("")}
       <div class="archive ${b.archiveOpen ? "" : "collapsed"}">
-        <div class="arch-head" data-act="toggle-archive" title="Done notes, and notes archived by hand · drop a card here to archive it">
+        <div class="arch-head" data-act="toggle-archive" title="Done tasks, and tasks archived by hand · drop a card here to archive it">
           <span class="arrow">${ICON.chevron}</span>${ICON.archive}<span class="t">Archive</span>
           ${arch.length ? `<span class="n">${archShown.length === arch.length ? arch.length : `${archShown.length}/${arch.length}`}</span>` : ""}
         </div>
-        <div class="notes" data-archive="1">${sortNotes(archShown).map(cardHtml).join("") || `<div class="arch-empty">${arch.length ? "Nothing here matches the filters." : "Done notes land here. Drop a card here, or right-click it › Archive."}</div>`}</div>
+        <div class="notes" data-archive="1">${sortNotes(archShown).map(cardHtml).join("") || `<div class="arch-empty">${arch.length ? "Nothing here matches the filters." : "Done tasks land here. Drop a card here, or right-click it › Archive."}</div>`}</div>
       </div>
     </div>
   </section>`;
@@ -806,7 +816,7 @@ function renderBoard(main) {
   if (!ws.boards.length) {
     main.innerHTML = `<div class="empty-board"><h2>No boards yet</h2>
       <p>Boards are the columns, kept in <b>groups</b>. Add a board, split it into <b>sections</b> if you like
-      and add notes with the <b>+</b> on each section.</p>
+      and add tasks with the <b>+</b> on each section.</p>
       <button class="primary" id="firstBoard">${ICON.plus} Create a board</button></div>`;
     $("#firstBoard").onclick = () => addBoard();
     return;
@@ -824,7 +834,7 @@ function renderBoard(main) {
         <button class="ghost icon" data-act="group-collapse" title="${g.collapsed ? "Expand group" : "Collapse group"}">${g.collapsed ? ICON.unfold : ICON.fold}</button>
         <span class="gdot"></span>
         <h3>${esc(g.name)}</h3>
-        <span class="n" title="notes">${count}</span>
+        <span class="n" title="tasks">${count}</span>
         ${away && !only ? `<button class="away" data-act="open-sidebar" title="boards hidden or hibernating in this group - manage them in the sidebar">${away} out of sight</button>` : ""}
         <span class="spacer"></span>
         <button class="ghost icon" data-act="add-board" title="Add a board to this group">${ICON.plus}</button>
@@ -869,7 +879,7 @@ function renderSidebar() {
       <span class="n">${n}</span>
       <span class="acts">
         <button class="tg ${x.collapsed ? "on" : ""}" data-t="collapsed" title="${x.collapsed ? "Expand" : "Collapse"}">${x.collapsed ? ICON.unfold : ICON.fold}</button>
-        <button class="tg ${hid ? "on" : ""}" data-t="hidden" title="${hid ? "Show" : "Hide (notes stay in table & search)"}">${hid ? ICON.eyeOff : ICON.eye}</button>
+        <button class="tg ${hid ? "on" : ""}" data-t="hidden" title="${hid ? "Show" : "Hide (tasks stay in table & search)"}">${hid ? ICON.eyeOff : ICON.eye}</button>
         <button class="tg ${x.hibernated ? "on" : ""} ${inherited ? "inherited" : ""}" data-t="hibernated" title="${x.hibernated ? "Wake up" : inherited ? "Its group is hibernating" : "Hibernate (gone everywhere until woken)"}">${ICON.moon}</button>
       </span>
     </div>`;
@@ -913,7 +923,7 @@ function setState(x, key, value) {
   save(); render();
   if (value && key !== "collapsed") {
     const what = isGroup ? "group" : "board";
-    const msg = key === "hidden" ? `Hid the ${what} “${esc(x.name)}” — its notes still show in the table.` : `“${esc(x.name)}” is hibernating — wake it from the sidebar.`;
+    const msg = key === "hidden" ? `Hid the ${what} “${esc(x.name)}” — its tasks still show in the table.` : `“${esc(x.name)}” is hibernating — wake it from the sidebar.`;
     const t = toast(`${msg} <button>Undo</button>`, 7000);
     $("button", t).onclick = () => { x[key] = false; t.classList.remove("show"); save(); render(); };
   }
@@ -1146,10 +1156,10 @@ $("#main").addEventListener("drop", e => {
     drag = null; clearDropMarks();
     if (!n || !x) return;
     n.links ||= [];
-    if (n.links.includes(x.b.id)) { toast(`“${esc(n.title || "This note")}” already links “${esc(x.b.title)}”.`); return; }
+    if (n.links.includes(x.b.id)) { toast(`“${esc(n.title || "This task")}” already links “${esc(x.b.title)}”.`); return; }
     n.links.push(x.b.id); n.updated = nowSec();
     save(); render();
-    toast(`Linked “${esc(x.b.title)}” to “${esc(n.title || "note")}”.`);
+    toast(`Linked “${esc(x.b.title)}” to “${esc(n.title || "task")}”.`);
     return;
   }
   const col = dropCol(e);
@@ -1479,7 +1489,7 @@ function sectionMenu(b, s, anchor) {
   const i = b.sections.indexOf(s);
   popMenu(anchor, `
     <button data-m="rename">${ICON.edit} Rename</button>
-    <button data-m="add">${ICON.plusSm} Add a note here</button>
+    <button data-m="add">${ICON.plusSm} Add a task here</button>
     <button data-m="collapse">${s.collapsed ? ICON.unfold : ICON.fold} ${s.collapsed ? "Expand" : "Collapse"}</button>
     ${i > 0 ? `<button data-m="up">Move up</button>` : ""}
     ${i < b.sections.length - 1 ? `<button data-m="down">Move down</button>` : ""}
@@ -1491,7 +1501,7 @@ function sectionMenu(b, s, anchor) {
       case "up": case "down": b.sections.splice(i, 1); b.sections.splice(i + (d.m === "up" ? -1 : 1), 0, s); save(); renderMain(); break;
       case "delete": {
         const count = ws.notes.filter(n => n.sectionId === s.id).length;
-        confirmBox(`Delete the section “${esc(s.name)}”?`, count ? `Its ${count} note(s) stay on the board, at the top (outside any section).` : "It has no notes.", "Delete", () => {
+        confirmBox(`Delete the section “${esc(s.name)}”?`, count ? `Its ${count} task(s) stay on the board, at the top (outside any section).` : "It has no tasks.", "Delete", () => {
           const snapshot = JSON.stringify(ws);
           b.sections = b.sections.filter(x => x !== s);
           ws.notes.forEach(n => { if (n.sectionId === s.id) n.sectionId = null; });
@@ -1512,7 +1522,7 @@ function dropBoardData(b) {
 }
 function deleteBoard(b) {
   const count = ws.notes.filter(n => n.boardId === b.id).length;
-  confirmBox(`Delete the board “${esc(b.name)}”?`, `This removes the board, its ${(b.bookmarks || []).length} link(s) and its ${count} note(s). You can undo right after.`, "Delete", () => {
+  confirmBox(`Delete the board “${esc(b.name)}”?`, `This removes the board, its ${(b.bookmarks || []).length} link(s) and its ${count} task(s). You can undo right after.`, "Delete", () => {
     const snapshot = JSON.stringify(ws);
     dropBoardData(b);
     save(); render();
@@ -1522,7 +1532,7 @@ function deleteBoard(b) {
 function deleteGroup(g) {
   const bs = boardsIn(g);
   const count = ws.notes.filter(n => bs.some(b => b.id === n.boardId)).length;
-  confirmBox(`Delete the group “${esc(g.name)}”?`, bs.length ? `This removes its ${bs.length} board(s) and their ${count} note(s). To keep a board, move it to another group first (board menu → Move to group). You can undo right after.` : "The group is empty.", "Delete", () => {
+  confirmBox(`Delete the group “${esc(g.name)}”?`, bs.length ? `This removes its ${bs.length} board(s) and their ${count} task(s). To keep a board, move it to another group first (board menu → Move to group). You can undo right after.` : "The group is empty.", "Delete", () => {
     const snapshot = JSON.stringify(ws);
     bs.forEach(dropBoardData);
     ws.groups = ws.groups.filter(x => x !== g);
@@ -1730,7 +1740,7 @@ function editBookmark(b, id, folderId = null) {
       <button data-x="pick-file">${ICON.file} File${x ? "" : "s"}…</button><button data-x="pick-folder">${ICON.folder} Folder…</button></div>
     <label class="f">Name (optional)<input type="text" id="bmTitle" placeholder="defaults to the site name" value="${esc(x?.title || "")}"></label>
     ${bmFolders(b).length ? `<label class="f">Folder<select id="bmFolder">${folderOpts()}</select></label>` : ""}
-    ${x ? `<div class="muted">${linked.length ? `Linked from: ${linked.map(n => esc(n.title)).join(", ")}` : "No notes link to this yet — link it from a note."}</div>` : ""}
+    ${x ? `<div class="muted">${linked.length ? `Linked from: ${linked.map(n => esc(n.title)).join(", ")}` : "No tasks link to this yet — link it from a task."}</div>` : ""}
     <div class="foot">${x ? `<button class="danger" data-x="del">Delete</button>` : ""}<div class="spacer"></div>
       <button data-x="cancel">Cancel</button><button class="primary" data-x="ok">${x ? "Save" : "Add"}</button></div>`, "small");
   const urlIn = $("#bmUrl", o), titleIn = $("#bmTitle", o);
@@ -1745,7 +1755,7 @@ function editBookmark(b, id, folderId = null) {
       urlIn.style.borderColor = "var(--danger)";
       let err = $(".bm-dup", o);
       if (!err) { err = document.createElement("div"); err.className = "bm-dup due-preview bad"; urlIn.closest("label").after(err); }
-      err.innerHTML = `Already in Links as “${esc(dup.b.title)}” in ${bmWhere(dup)} — link that one from your notes.`;
+      err.innerHTML = `Already in Links as “${esc(dup.b.title)}” in ${bmWhere(dup)} — link that one from your tasks.`;
       urlIn.focus();
       return;
     }
@@ -1881,7 +1891,7 @@ function openNote(n, { panel = null, fresh = false } = {}) {
         <button id="nAddFile" title="Choose local files to add to this board's Links and link here">${ICON.file} Files…</button><button id="nAddFolder" title="Choose a local folder">${ICON.folder}</button></div>
     </div>
     <div class="ne-panel" data-panel="deps" hidden>
-      <input type="search" id="nDepFilter" placeholder="find the note this one waits on…">
+      <input type="search" id="nDepFilter" placeholder="find the task this one waits on…">
       <div class="link-pick dep-pick" id="nDepPick"></div>
     </div>
     <div class="section-f" id="nLinkSec"><span class="lbl">Links</span><div class="nv-links" id="nLinkChips"></div></div>
@@ -2138,11 +2148,11 @@ function openNote(n, { panel = null, fresh = false } = {}) {
     $("#nDepPick", o).innerHTML = items.map(({ x }) => {
       const xb = boardOf(x), xs = section(xb, x.sectionId);
       const loop = !mine.has(x.id) && waitsOn(x, n);
-      return `<label class="${loop ? "dis" : ""} ${isDone(x) ? "is-done" : ""}" ${loop ? `title="“${esc(x.title || "(untitled)")}” already waits on this note"` : ""}>`
+      return `<label class="${loop ? "dis" : ""} ${isDone(x) ? "is-done" : ""}" ${loop ? `title="“${esc(x.title || "(untitled)")}” already waits on this task"` : ""}>`
         + `<input type="checkbox" data-dep="${x.id}" ${mine.has(x.id) ? "checked" : ""} ${loop ? "disabled" : ""}>`
         + `<span class="dot" style="background:${xb?.color || "var(--faint)"}"></span><span class="dt">${esc(x.title || "(untitled)")}</span>`
         + ` <span class="u">${esc(xb?.name || "")}${xs ? ` › ${esc(xs.name)}` : ""}${loop ? " · would make a loop" : ""}</span></label>`;
-    }).join("") || `<div class="none">${ws.notes.length > 1 ? "no match" : "No other notes yet."}</div>`;
+    }).join("") || `<div class="none">${ws.notes.length > 1 ? "no match" : "No other tasks yet."}</div>`;
   };
   renderDeps(); renderDepPick();
   depFilter.oninput = renderDepPick;
@@ -2177,7 +2187,7 @@ function deleteNote(n) {
   const snapshot = JSON.stringify(ws);
   ws.notes = ws.notes.filter(x => x !== n);
   save(); render();
-  offerUndo(`Deleted “${esc(n.title || "note")}”.`, snapshot);
+  offerUndo(`Deleted “${esc(n.title || "task")}”.`, snapshot);
 }
 
 // right-click a note on any view: the common changes without opening it.
@@ -2190,6 +2200,15 @@ function calPopup(anchor, picked, onDay, month = (picked || Due.todayIso()).slic
     else if (d.calDay) onDay(d.calDay);
   });
 }
+// the ⋯ on a task (card, row, table, graph): the same menu as a right-click
+const noteMoreBtn = `<button class="ghost icon note-more" title="Task menu" draggable="false">${ICON.more}</button>`;
+document.addEventListener("click", e => {
+  const btn = e.target.closest?.(".note-more"); if (!btn) return;
+  const n = note(btn.closest("[data-note]")?.dataset.note); if (!n) return;
+  e.preventDefault(); e.stopPropagation();
+  const r = btn.getBoundingClientRect();
+  noteMenu(n, r.left, r.bottom);
+}, true);
 function noteMenu(n, x, y) {
   const at = { getBoundingClientRect: () => ({ left: x, bottom: y }) };
   const b = boardOf(n), secs = b?.sections || [];
@@ -2232,7 +2251,7 @@ function noteMenu(n, x, y) {
       case "archive": {
         const snapshot = JSON.stringify(ws), was = inArchive(n);
         setArchived(n, !was); save(); render();
-        offerUndo(was ? `Restored “${esc(n.title || "note")}” to ${esc(sectionName(n))}.` : `Archived “${esc(n.title || "note")}”.`, snapshot);
+        offerUndo(was ? `Restored “${esc(n.title || "task")}” to ${esc(sectionName(n))}.` : `Archived “${esc(n.title || "task")}”.`, snapshot);
         break;
       }
       case "done": toggleDone(n); break;
@@ -2262,8 +2281,8 @@ function ago(sec) {
 // ---------- table ----------
 
 const COLS = [
-  { key: "done", label: "", w: "40px" },
-  { key: "title", label: "Note" },
+  { key: "done", label: "", w: "68px" },
+  { key: "title", label: "Task" },
   { key: "section", label: "Section" },
   { key: "board", label: "Board" },
   { key: "tags", label: "Tags" },
@@ -2313,7 +2332,7 @@ function renderTable(main) {
     <tbody>${rows.map(({ n }) => {
       const b = boardOf(n), g = group(b?.groupId), s = section(b, n.sectionId);
       return `<tr class="row ${isDone(n) ? "is-done" : ""}" data-note="${n.id}">
-        <td><button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button></td>
+        <td class="rowbtns"><button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>${noteMoreBtn}</td>
         <td class="t"><div>${esc(n.title || "(untitled)")}</div>${n.body ? `<div class="sub">${esc(MD.plain(n.body.trim().split("\n")[0]))}</div>` : ""}</td>
         <td><span class="sec-cell" style="--pc:${b?.color || "var(--border)"}"><b>${esc(s ? s.name : "General")}</b> — ${esc(b?.name || "?")}</span></td>
         <td><div class="proj" style="--pc:${b?.color || "var(--border)"}"><i></i>${esc(b?.name || "?")}${hiddenB(b) ? ` <span class="flag" title="hidden board">${ICON.eyeOff}</span>` : ""}</div>
@@ -2324,7 +2343,7 @@ function renderTable(main) {
         <td class="dim">${ago(n.updated)}</td>
         <td class="dim">${ago(n.created)}</td></tr>`;
     }).join("")}</tbody></table>
-    ${rows.length ? "" : `<div class="table-empty">${ws.notes.length ? "No notes match the filters." : "No notes yet — add them in the Board view."}</div>`}</div>`;
+    ${rows.length ? "" : `<div class="table-empty">${ws.notes.length ? "No tasks match the filters." : "No tasks yet — add them in the Board view."}</div>`}</div>`;
 }
 
 // ---------- settings ----------
@@ -2381,7 +2400,7 @@ async function openSettings() {
     $("#sTags", o).innerHTML = ws.tags.map((t, i) => {
       const uses = ws.notes.filter(n => (n.tags || []).includes(t.name)).length;
       return `<div class="tm" data-i="${i}"><input type="color" value="${t.color}"><input type="text" value="${esc(t.name)}">
-        <span class="hint" style="width:60px">${uses} note${uses === 1 ? "" : "s"}</span><button class="ghost icon" data-del="${i}" title="delete tag">${ICON.x}</button></div>`;
+        <span class="hint" style="width:60px">${uses} task${uses === 1 ? "" : "s"}</span><button class="ghost icon" data-del="${i}" title="delete tag">${ICON.x}</button></div>`;
     }).join("");
   };
   renderTagList();

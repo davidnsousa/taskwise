@@ -2299,6 +2299,7 @@ function noteMenu(n, x, y) {
     <button data-m="open">${ICON.edit} Open</button>
     <button data-m="done">${ICON.check} ${isDone(n) ? "Mark not done" : "Mark done"}</button>
     <button data-m="deps">${ICON.dep} Depends on…</button>
+    <button data-m="contacts">${ICON.users} Add contact or list…</button>
     ${taskEmails(n).length ? `<button data-m="email">${ICON.mail} Email contacts…</button>` : ""}
     <button data-m="archive">${ICON.archive} ${inArchive(n) ? "Restore from archive" : "Archive"}</button>
     <hr><div class="menu-label">Due ${due}</div>
@@ -2339,6 +2340,7 @@ function noteMenu(n, x, y) {
       case "done": toggleDone(n); break;
       case "delete": deleteNote(n); break;
       case "email": taskEmailMenu(n, at); break;
+      case "contacts": contactPickMenu(n, at); break;
     }
   });
 }

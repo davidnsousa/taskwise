@@ -165,13 +165,15 @@ function editContact(id, { after, name = "", email = "" } = {}) {
   const c = id ? contactById(id) : null;
   const lists = ws.contactLists;
   const o = modal(`<h3>${c ? "Edit contact" : "New contact"}</h3>
-    <label class="f">Name<input type="text" id="cName" placeholder="Ada Lovelace"></label>
-    <label class="f">Email<input type="text" id="cEmail" placeholder="name@example.com"></label>
-    <label class="f">Note (optional)<input type="text" id="cNote" placeholder="role, company, phone…"></label>
-    ${lists.length ? `<div class="section-f"><span class="lbl">Lists</span><div class="ct-pick">${lists.map(l =>
-      `<label><input type="checkbox" data-l="${l.id}" ${c && (l.members || []).includes(c.id) ? "checked" : ""}>${esc(l.name)}</label>`).join("")}</div></div>` : ""}
+    <div class="ct-form">
+      <label class="f">Name<input type="text" id="cName"></label>
+      <label class="f">Email<input type="text" id="cEmail" placeholder="name@example.com"></label>
+      <label class="f wide"><span>Note <span class="opt">· optional</span></span><input type="text" id="cNote" placeholder="role, company, phone…"></label>
+    </div>
+    ${lists.length ? `<div class="section-f"><span class="lbl">Lists</span><div class="tog-chips">${lists.map(l =>
+      `<label class="tog"><input type="checkbox" data-l="${l.id}" ${c && (l.members || []).includes(c.id) ? "checked" : ""}><span>${ICON.users}${esc(l.name)}</span></label>`).join("")}</div></div>` : ""}
     <div id="cErr" class="due-preview bad"></div>
-    <div class="foot"><div class="spacer"></div><button id="cCancel">Cancel</button><button class="primary" id="cOk">${c ? "Save" : "Add contact"}</button></div>`, "small");
+    <div class="foot"><div class="spacer"></div><button id="cCancel">Cancel</button><button class="primary" id="cOk">${c ? "Save" : "Add contact"}</button></div>`, "wide");
   $("#cName", o).value = c?.name ?? name;
   $("#cEmail", o).value = c?.email ?? email;
   $("#cNote", o).value = c?.note || "";
@@ -297,27 +299,51 @@ function dedupe(rows) {
   return [...by.values()];
 }
 
+// a selectable person card: initials that turn into a tick when chosen
+const initials = s => (s || "?").replace(/@.*/, "").split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
+const ICON_SEARCH = '<svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+const memCard = (attr, checked, name, email, extra = "") =>
+  `<label class="mem" data-q="${esc((name + " " + email).toLowerCase())}"><input type="checkbox" ${attr} ${checked ? "checked" : ""}>`
+  + `<span class="av">${esc(initials(name && name !== "(no name)" ? name : email))}</span><span class="av-check">${ICON.check}</span>`
+  + `<span class="mem-t"><span class="mem-n">${esc(name)}</span><span class="mem-e">${esc(email)}</span></span>${extra}</label>`;
+
 function editContactList(id, { after } = {}) {
   const l = id ? contactListById(id) : null;
-  const sorted = [...ws.contacts].sort((a, b) => ctName(a).localeCompare(ctName(b)));
+  // the list's members first, then everyone else, each by name
+  const isIn = c => (l?.members || []).includes(c.id) ? 0 : 1;
+  const sorted = [...ws.contacts].sort((a, b) => isIn(a) - isIn(b) || ctName(a).localeCompare(ctName(b)));
   const o = modal(`<h3>${l ? "Edit list" : "New list"}</h3>
-    <label class="f">Name<input type="text" id="clName" placeholder="Steering committee"></label>
-    <div class="section-f"><span class="lbl">Members</span>
-      ${sorted.length > 8 ? `<input type="search" id="clFilter" placeholder="filter contacts…">` : ""}
-      <div class="link-pick ct-members" id="clMembers">${sorted.map(c =>
-        `<label data-q="${esc((ctName(c) + " " + c.email).toLowerCase())}"><input type="checkbox" data-c="${c.id}" ${l && (l.members || []).includes(c.id) ? "checked" : ""}>${esc(ctName(c))} <span class="u">${esc(c.email)}</span></label>`).join("")
-        || `<div class="none">No contacts yet — paste them below.</div>`}</div></div>
-    <div class="section-f"><span class="lbl">Add from a spreadsheet <span class="hint">· copy the rows (with or without a header) and paste them here</span></span>
-      <textarea id="clPaste" rows="3" spellcheck="false" placeholder="Name&#9;Email&#10;Ada Lovelace&#9;ada@example.com&#10;Alan Turing&#9;alan@example.org"></textarea>
+    <label class="f">Name<input type="text" id="clName"></label>
+    <div class="section-f">
+      <div class="mem-head"><span class="lbl">Members</span><span class="mem-count" id="clCount"></span><span class="spacer"></span>
+        ${sorted.length ? `<span class="mem-search">${ICON_SEARCH}<input type="search" id="clFilter" placeholder="Search contacts"></span>
+        <button class="ghost" id="clAll">Select all</button><button class="ghost" id="clNone">Clear</button>` : ""}</div>
+      ${sorted.length ? `<div class="mem-grid" id="clMembers">${sorted.map(c =>
+        memCard(`data-c="${c.id}"`, l && (l.members || []).includes(c.id), ctName(c), c.email)).join("")}</div>`
+        : `<div class="mem-empty">No contacts yet — paste them below.</div>`}
+    </div>
+    <div class="section-f"><span class="lbl">Add from a spreadsheet</span>
+      <textarea id="clPaste" class="paste-zone" rows="2" spellcheck="false" placeholder="Paste rows copied from a spreadsheet, a CSV or an email’s To line"></textarea>
+      <div class="hint">Tabs, commas or semicolons are detected, and a header row’s name and email columns are used.</div>
       <div class="imp" id="clImp" hidden></div></div>
     <div id="clErr" class="due-preview bad"></div>
-    <div class="foot"><div class="spacer"></div><button id="clCancel">Cancel</button><button class="primary" id="clOk">${l ? "Save" : "Add list"}</button></div>`, "small");
+    <div class="foot"><div class="spacer"></div><button id="clCancel">Cancel</button><button class="primary" id="clOk">${l ? "Save" : "Add list"}</button></div>`, "wide");
   $("#clName", o).value = l?.name || "";
   $("#clName", o).focus();
+  const count = () => {
+    const all = $$("[data-c]", o), on = all.filter(b => b.checked).length;
+    const el = $("#clCount", o); if (el) el.textContent = all.length ? `${on} of ${all.length} selected` : "";
+  };
+  count();
+  $("#clMembers", o)?.addEventListener("change", count);
   $("#clFilter", o)?.addEventListener("input", e => {
     const q = e.target.value.toLowerCase();
-    $$("#clMembers label", o).forEach(r => { r.style.display = r.dataset.q.includes(q) ? "" : "none"; });
+    $$("#clMembers .mem", o).forEach(r => { r.hidden = !r.dataset.q.includes(q); });
   });
+  // select all / clear: the cards the search shows
+  const setShown = on => { $$("#clMembers .mem:not([hidden]) [data-c]", o).forEach(b => { b.checked = on; }); count(); };
+  $("#clAll", o)?.addEventListener("click", () => setShown(true));
+  $("#clNone", o)?.addEventListener("click", () => setShown(false));
   // pasted contacts: previewed as they will be added, each can be unticked
   let pasted = [];
   const byEmail = em => ws.contacts.find(c => c.email.toLowerCase() === em.toLowerCase());
@@ -330,10 +356,10 @@ function editContactList(id, { after } = {}) {
     box.innerHTML = `<div class="imp-sum">${pasted.length
         ? `<b>${pasted.length}</b> contact${pasted.length === 1 ? "" : "s"} found (${fresh} new, ${pasted.length - fresh} already in your contacts) · separated by ${p.sep}${skip}`
         : `No email addresses found${skip}.`}</div>`
-      + (pasted.length ? `<div class="link-pick imp-rows">${pasted.map((r, i) => {
+      + (pasted.length ? `<div class="mem-grid imp-rows">${pasted.map((r, i) => {
         const had = byEmail(r.email);
-        return `<label><input type="checkbox" data-imp="${i}" checked><span class="imp-n">${esc(r.name || had?.name || "(no name)")}</span>`
-          + `<span class="u">${esc(r.email)}</span><span class="imp-tag ${had ? "" : "new"}">${had ? "existing" : "new"}</span></label>`;
+        return memCard(`data-imp="${i}"`, true, r.name || had?.name || "(no name)", r.email,
+          `<span class="imp-tag ${had ? "" : "new"}">${had ? "existing" : "new"}</span>`);
       }).join("")}</div>` : "");
   };
   $("#clPaste", o).addEventListener("input", renderImport);
@@ -458,4 +484,37 @@ function taskEmailMenu(n, anchor) {
     if (d.m === "copy") copyText(emails.join(", ")).then(() => toast(`${emails.length} address${emails.length === 1 ? "" : "es"} copied.`));
     else emailTo(emails, d.m, n.title || "");
   });
+}
+// from the task's right-click menu: tick contacts and lists on or off; the
+// menu stays open while you tick, and can add a new contact
+function contactPickMenu(n, anchor) {
+  const mine = new Set(n.contacts || []);
+  const row = (id, icon, name, sub) => `<label class="cpm-row" data-q="${esc((name + " " + sub).toLowerCase())}">`
+    + `<input type="checkbox" data-cpm="${id}" ${mine.has(id) ? "checked" : ""}>${icon}<span class="cpm-n">${esc(name)}</span><span class="u">${esc(sub)}</span></label>`;
+  const lists = [...ws.contactLists].sort((a, b) => a.name.localeCompare(b.name));
+  const people = [...ws.contacts].sort((a, b) => ctName(a).localeCompare(ctName(b)));
+  const many = lists.length + people.length > 8;
+  popMenu(anchor, `<div class="menu-label">Contacts on “${esc(n.title || "(untitled)")}”</div>
+    ${many ? `<input type="search" class="cpm-filter" placeholder="filter…">` : ""}
+    <div class="cpm-list">${lists.length ? `<div class="menu-label">Lists</div>` + lists.map(l => row(l.id, ICON.users, l.name, `${listMembers(l).length} contacts`)).join("") : ""}
+    ${people.length ? `<div class="menu-label">Contacts</div>` + people.map(c => row(c.id, ICON.user, ctName(c), c.email)).join("") : ""}
+    ${lists.length + people.length ? "" : `<div class="today-empty">No contacts yet.</div>`}</div>
+    <hr><button data-m="new">${ICON.plusSm} New contact…</button>`, d => {
+    if (d.m === "new") editContact(null, { after: c => { n.contacts ||= []; if (!n.contacts.includes(c.id)) n.contacts.push(c.id); n.updated = nowSec(); save(); render(); } });
+  });
+  const m = $(".menu"); if (!m) return;
+  m.classList.add("cpm");
+  m.addEventListener("change", e => {
+    const id = e.target.dataset.cpm; if (!id) return;
+    n.contacts = e.target.checked ? [...(n.contacts || []), id] : (n.contacts || []).filter(x => x !== id);
+    n.updated = nowSec(); save(); render();
+  });
+  const f = $(".cpm-filter", m);
+  if (f) {
+    f.focus();
+    f.addEventListener("input", () => {
+      const q = f.value.toLowerCase();
+      $$(".cpm-row", m).forEach(r => { r.style.display = r.dataset.q.includes(q) ? "" : "none"; });
+    });
+  }
 }

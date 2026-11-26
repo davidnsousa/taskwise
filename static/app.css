@@ -475,6 +475,7 @@ table.notes-table {
 @keyframes fade { from { opacity: 0; } }
 @keyframes pop { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
 .modal.small { width: min(440px, 100%); }
+.modal.wide { width: min(760px, 100%); }
 .modal h3 { margin: 0; font-size: calc(17px * var(--ui-scale)); font-weight: 650; letter-spacing: -0.02em; }
 .modal label.f { display: flex; flex-direction: column; gap: 6px; font-size: calc(12px * var(--ui-scale)); color: var(--muted); font-weight: 550; }
 .modal input[type=text], .modal input[type=url], .modal textarea, .modal select { width: 100%; }
@@ -996,11 +997,47 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .modal .ct-lbl .ct-mail { height: 24px; padding: 0 8px; font-size: calc(12px * var(--ui-scale)); gap: 5px; }
 .nv-links .ct-wrap { max-width: 320px; }
 .nv-links .ct-more { opacity: 1; }
-.ct-pick { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.ct-pick label { display: inline-flex; align-items: center; gap: 6px; font-size: calc(13px * var(--ui-scale)); cursor: pointer; }
 .ct-pick-list label .ic { color: var(--faint); }
-.ct-members { max-height: 260px; }
-#clFilter { width: 100%; margin-bottom: 6px; }
+
+/* the contact and list editors */
+.ct-form { display: grid; grid-template-columns: 1fr 1.2fr; gap: 14px; }
+.ct-form .wide { grid-column: 1 / -1; }
+.modal label.f .opt { font-weight: 400; color: var(--faint); }
+@media (max-width: 560px) { .ct-form { grid-template-columns: 1fr; } }
+/* lists as toggle chips */
+.tog-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tog { position: relative; cursor: pointer; }
+.tog input { position: absolute; opacity: 0; pointer-events: none; }
+.tog span { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); font-size: calc(12.5px * var(--ui-scale)); font-weight: 500; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+.tog:hover span { border-color: var(--border-strong); color: var(--text); }
+.tog input:checked + span { background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+.tog input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* members: a header with count, search and select all / clear */
+.mem-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mem-head .lbl { font-size: calc(12px * var(--ui-scale)); color: var(--muted); font-weight: 550; }
+.mem-count { font-size: calc(12px * var(--ui-scale)); color: var(--faint); font-variant-numeric: tabular-nums; }
+.mem-head .ghost { height: 28px; font-size: calc(12px * var(--ui-scale)); }
+.mem-search { position: relative; display: inline-flex; align-items: center; }
+.mem-search .ic { position: absolute; left: 9px; color: var(--faint); pointer-events: none; }
+.mem-search input { width: 200px; height: 30px; padding-left: 29px; border-radius: 999px; }
+/* person cards: initials, name and email; ticked ones turn accent with a check */
+.mem-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; max-height: 330px; overflow: auto; padding: 2px; margin: -2px; align-content: start; }
+.mem { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: var(--card); cursor: pointer; min-width: 0; transition: background 0.15s, border-color 0.15s; }
+.mem[hidden] { display: none; }
+.mem:hover { border-color: var(--border-strong); }
+.mem input { position: absolute; opacity: 0; pointer-events: none; }
+.mem .av, .mem .av-check { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: calc(11px * var(--ui-scale)); font-weight: 650; letter-spacing: 0.02em; }
+.mem .av { background: var(--chip); color: var(--muted); }
+.mem .av-check { display: none; background: var(--accent-strong); color: #fff; }
+.mem .av-check .ic { width: 14px; height: 14px; stroke-width: 3; }
+.mem:has(input:checked) { background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.mem:has(input:checked) .av { display: none; }
+.mem:has(input:checked) .av-check { display: inline-flex; }
+.mem:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mem-t { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; }
+.mem-n { font-size: calc(13px * var(--ui-scale)); font-weight: 560; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mem-e { font-size: calc(11.5px * var(--ui-scale)); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mem-empty { color: var(--faint); font-size: calc(12.5px * var(--ui-scale)); padding: 14px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
 
 /* the Contacts view: lists beside people */
 .ct-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
@@ -1020,14 +1057,26 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .ct-tasks { font-size: calc(11px * var(--ui-scale)); color: var(--faint); background: var(--chip); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 .ct-row .ct-more { position: static; width: 26px; height: 26px; opacity: 0; border-radius: 7px; }
 .ct-row:hover .ct-more { opacity: 1; }
+/* the task menu's contact picker */
+.menu.cpm { width: min(360px, calc(100vw - 16px)); }
+.cpm-filter { margin: 2px 4px 4px; }
+.cpm-list { max-height: 320px; overflow: auto; }
+.cpm-row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 10px; border-radius: 7px; cursor: pointer; font-size: calc(13px * var(--ui-scale)); }
+.cpm-row:hover { background: var(--hover); }
+.cpm-row .ic { color: var(--faint); flex-shrink: 0; }
+.cpm-row .cpm-n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cpm-row .u { margin-left: auto; padding-left: 8px; color: var(--faint); font-size: calc(11.5px * var(--ui-scale)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cpm-row input { accent-color: var(--accent-strong); }
 /* pasting contacts into a list */
-#clPaste { width: 100%; min-height: 64px; height: auto; padding: 7px 10px; resize: vertical; font-family: var(--mono, ui-monospace, Menlo, monospace); font-size: calc(12px * var(--ui-scale)); line-height: 1.5; }
+/* a quiet dashed area to paste into */
+.modal textarea.paste-zone { width: 100%; min-height: 56px; height: auto; padding: 14px 14px; resize: vertical; border: 1.5px dashed var(--border-strong); border-radius: 12px; background: var(--hover); font-size: calc(13px * var(--ui-scale)); line-height: 1.5; }
+.modal textarea.paste-zone:focus { border-style: solid; background: var(--surface); }
+.modal textarea.paste-zone:not(:placeholder-shown) { font-family: var(--mono, ui-monospace, Menlo, monospace); font-size: calc(12px * var(--ui-scale)); }
 .imp { display: flex; flex-direction: column; gap: 6px; }
 .imp[hidden] { display: none; }
 .imp-sum { font-size: calc(12px * var(--ui-scale)); color: var(--muted); }
-.imp-rows { max-height: 220px; }
-.imp-rows label .imp-n { font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.imp-rows label .u { flex: 1; min-width: 0; }
+.imp-rows { max-height: 240px; }
+.imp-rows .imp-tag { flex-shrink: 0; }
 .imp-tag { font-size: calc(10.5px * var(--ui-scale)); color: var(--faint); background: var(--chip); border-radius: 999px; padding: 1px 7px; }
 .imp-tag.new { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
 

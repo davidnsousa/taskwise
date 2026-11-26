@@ -34,6 +34,9 @@ const ICON = {
   grip: svg('<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>', 14),
   bookmark: svg('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>', 13),
   eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>', 14),
+  user: svg('<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>', 14),
+  users: svg('<circle cx="9" cy="8.5" r="3"/><path d="M3 19.5c.6-3 2.9-4.8 6-4.8s5.4 1.8 6 4.8"/><path d="M16 5.6a3 3 0 0 1 0 5.8M17.5 14.9c1.9.6 3.1 2.2 3.5 4.6"/>', 14),
+  mail: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6 8.5-6"/>'),
   moon: svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>', 14),
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>', 14),
   file: svg('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>', 14),
@@ -64,7 +67,7 @@ async function loadBoard() {
   if (status !== 200) { setStatus(data.error || "can't read board", true); return; }
   ws = data.board;
   rev = data.rev;
-  ws.groups ||= []; ws.boards ||= []; ws.notes ||= []; ws.tags ||= [];
+  ws.groups ||= []; ws.boards ||= []; ws.notes ||= []; ws.tags ||= []; ws.contacts ||= []; ws.contactLists ||= [];
   // notes done before taskwise kept doneAt: their last edit is the best guess
   // (usually the moment they were marked done); 1 = "long ago" when unknown
   // (an earlier version wrote 1 for all of them, so 1 is redone too)
@@ -375,7 +378,7 @@ function matches(n, { archive = false } = {}) {
     const words = ui.q.toLowerCase().split(/\s+/).filter(Boolean);
     const linkText = (n.links || []).map(id => { const x = bookmark(id); return x ? x.b.title + " " + x.b.url : ""; }).join(" ");
     const sec = section(b, n.sectionId)?.name || "";
-    const hay = `${n.title} ${n.body} ${n.waitingFor || ""} ${tags.join(" ")} ${b?.name || ""} ${group(b?.groupId)?.name || ""} ${sec} ${linkText}`.toLowerCase();
+    const hay = `${n.title} ${n.body} ${n.waitingFor || ""} ${tags.join(" ")} ${b?.name || ""} ${group(b?.groupId)?.name || ""} ${sec} ${linkText} ${contactText(n)}`.toLowerCase();
     if (!words.every(w => hay.includes(w))) return false;
   }
   return true;
@@ -718,7 +721,7 @@ function cardHtml(n) {
     <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>${noteMoreBtn}
     <div class="title">${esc(n.title || "(untitled)")}</div>
     ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
-    <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}</div>
+    <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}${contactChips(n)}</div>
     ${taskBar(n)}
   </div>`;
 }
@@ -1948,11 +1951,17 @@ function openNote(n, { panel = null, fresh = false } = {}) {
       <div class="row"><input type="text" id="nNewUrl" placeholder="add a new link: https://… or a path" style="flex:1.4"><input type="text" id="nNewName" placeholder="name (optional)" style="flex:1"><button id="nAddUrl">Add & link</button>
         <button id="nAddFile" title="Choose local files to add to this board's Links and link here">${ICON.file} Files…</button><button id="nAddFolder" title="Choose a local folder">${ICON.folder}</button></div>
     </div>
+    <div class="ne-panel" data-panel="contacts" hidden>
+      <input type="search" id="nCtFilter" placeholder="filter contacts and lists…" style="display:none">
+      <div class="link-pick ct-pick-list" id="nCtPick"></div>
+      <div class="row"><input type="text" id="nCtName" placeholder="new contact: name" style="flex:1"><input type="text" id="nCtEmail" placeholder="email" style="flex:1.2"><button id="nCtAdd">Add & attach</button></div>
+    </div>
     <div class="ne-panel" data-panel="deps" hidden>
       <input type="search" id="nDepFilter" placeholder="find the task this one waits on…">
       <div class="link-pick dep-pick" id="nDepPick"></div>
     </div>
     <div class="section-f" id="nLinkSec"><span class="lbl">Links</span><div class="nv-links" id="nLinkChips"></div></div>
+    <div class="section-f" id="nCtSec"><span class="lbl ct-lbl">Contacts<button class="ghost ct-mail" id="nCtMail" title="Email everyone on this task">${ICON.mail} Email all…</button></span><div class="nv-links" id="nCtChips"></div></div>
     <div class="section-f" id="nDepSec"><span class="lbl">Depends on</span><div class="nv-links" id="nDepChips"></div></div>
     <div class="section-f" id="nBlockSec"><span class="lbl">Needed by</span><div class="nv-links" id="nBlockChips"></div></div>
     <div class="foot">
@@ -1991,6 +2000,7 @@ function openNote(n, { panel = null, fresh = false } = {}) {
       + `<button class="ne-add" data-open="tags">${ICON.plusSm} tag</button>`
       + (due ? "" : `<button class="ne-add" data-open="due">${ICON.plusSm} due</button>`)
       + `<button class="ne-add" data-open="links">${ICON.plusSm} link</button>`
+      + `<button class="ne-add" data-open="contacts">${ICON.plusSm} contact</button>`
       + `<button class="ne-add" data-open="deps">${ICON.plusSm} depends on</button>`;
     $$("[data-open]", $("#nMeta", o)).forEach(b => b.classList.toggle("on", b.dataset.open === open));
   };
@@ -2006,7 +2016,8 @@ function openNote(n, { panel = null, fresh = false } = {}) {
     $("#nView", o).classList.toggle("is-done", isDone(n));
   };
   $("#nDone", o).onclick = () => { toggleDone(n); renderDone(); renderMeta(); renderTags(); renderWhere(); };
-  o._refresh = () => { renderMeta(); renderLinkChips(); renderLinks(); renderDeps(); };
+  let refreshContacts = null;
+  o._refresh = () => { renderMeta(); renderLinkChips(); renderLinks(); renderDeps(); refreshContacts?.(); };
   renderWhere(); renderMeta(); renderLinkChips(); renderDone();
 
   const touch = () => { n.updated = nowSec(); save(); };
@@ -2189,6 +2200,9 @@ function openNote(n, { panel = null, fresh = false } = {}) {
   $("#nNewUrl", o).onkeydown = e => { if (e.key === "Enter") addUrl(); };
   $("#nNewName", o).onkeydown = e => { if (e.key === "Enter") addUrl(); };
 
+  // contacts and lists
+  refreshContacts = contactPanel(n, o, touch);
+
   // dependencies
   const depChip = (d, removable) => {
     const db = boardOf(d);
@@ -2285,6 +2299,7 @@ function noteMenu(n, x, y) {
     <button data-m="open">${ICON.edit} Open</button>
     <button data-m="done">${ICON.check} ${isDone(n) ? "Mark not done" : "Mark done"}</button>
     <button data-m="deps">${ICON.dep} Depends on…</button>
+    ${taskEmails(n).length ? `<button data-m="email">${ICON.mail} Email contacts…</button>` : ""}
     <button data-m="archive">${ICON.archive} ${inArchive(n) ? "Restore from archive" : "Archive"}</button>
     <hr><div class="menu-label">Due ${due}</div>
     <div class="menu-chips">${DUE_CHIPS.map(c => `<button data-due="${c}">${c}</button>`).join("")}<button data-cal-open="">${ICON.calendar} pick a day…</button>${n.due ? `<button data-due="">clear</button>` : ""}</div>
@@ -2323,6 +2338,7 @@ function noteMenu(n, x, y) {
       }
       case "done": toggleDone(n); break;
       case "delete": deleteNote(n); break;
+      case "email": taskEmailMenu(n, at); break;
     }
   });
 }
@@ -2406,7 +2422,7 @@ function renderTable(main) {
           <div class="sub">${esc(g?.name || "")}</div></td>
         <td class="tags">${tagPills(n)}</td>
         <td>${dueBadge(n) || `<span class="hint">—</span>`}</td>
-        <td class="links">${linkChips(n)}</td>
+        <td class="links">${linkChips(n)}${contactChips(n)}</td>
         <td class="dim">${ago(n.updated)}</td>
         <td class="dim">${ago(n.created)}</td></tr>`;
     }).join("")}</tbody></table>
@@ -2436,6 +2452,10 @@ async function openSettings() {
       <label class="f" style="flex:1">Text size <input type="range" id="sScale" min="0.85" max="1.5" step="0.05"></label>
       <label class="f" style="flex:1" title="Boards are never narrower than this; they stretch to fill the row and wrap onto a new row when they don't fit">Board width (minimum) <input type="range" id="sColMin" min="200" max="480" step="10"></label>
     </div>
+    <div class="section-f"><span class="lbl">Email</span>
+      <div class="row"><label class="f" style="flex:1">Email with<select id="sEmail">${EMAIL_APPS.map(a => `<option value="${a.id}">${a.name}</option>`).join("")}</select></label></div>
+      <div class="muted">Used by <b>New email</b> on contacts and lists: it opens a new message to them in this app.</div>
+    </div>
     <div class="section-f"><span class="lbl">Data folder</span>
       <div class="muted">Everything is saved as <code>${esc(cfg.board_file || "")}</code> (with a <code>.bak</code> of the previous save next to it).</div>
       <div class="row"><input type="text" id="sDir" value="${esc(cfg.data_dir || "")}" style="flex:1"><button id="sSwitch">Switch</button></div>
@@ -2448,6 +2468,8 @@ async function openSettings() {
   $("#sTheme", o).value = themeOf(settings.theme).id;
   $("#sScale", o).value = settings.scale || 1;
   $("#sTheme", o).onchange = e => setTheme(e.target.value);
+  $("#sEmail", o).value = settings.emailApp || "";
+  $("#sEmail", o).onchange = e => { settings.emailApp = e.target.value; saveSettings(); };
   $("#sScale", o).oninput = e => { settings.scale = +e.target.value; applyLook(); saveSettings(); };
   $("#sColMin", o).value = settings.colMin || 280;
   $("#sColMin", o).oninput = e => { settings.colMin = +e.target.value; applyLook(); saveSettings(); };

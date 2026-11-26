@@ -391,11 +391,27 @@ function editContactList(id, { after } = {}) {
 function renderContacts(main) {
   const words = (ui.q || "").toLowerCase().split(/\s+/).filter(Boolean);
   const hit = s => words.every(w => s.toLowerCase().includes(w));
-  const usedIn = id => { const k = tasksWithContact(id).length; return k ? `<span class="ct-tasks" title="on ${k} task${k === 1 ? "" : "s"}">${k} task${k === 1 ? "" : "s"}</span>` : ""; };
-  const row = (id, kind, title, sub) => `<div class="ct-row" data-ct="${id}" title="click to edit">
+  // markers for the tasks a contact or list is on: a contact's own tasks,
+  // then those it reaches through a list (lighter); click one to open it
+  const marks = (id, kind) => {
+    const own = tasksWithContact(id).filter(n => !asleep(boardOf(n)));
+    const via = kind === "contact" ? ws.contactLists.filter(l => (l.members || []).includes(id))
+      .flatMap(l => tasksWithContact(l.id).filter(n => !asleep(boardOf(n)) && !own.includes(n)).map(n => ({ n, l }))) : [];
+    const seen = new Set(), items = [...own.map(n => ({ n })), ...via].filter(x => !seen.has(x.n.id) && seen.add(x.n.id));
+    if (!items.length) return "";
+    const MAX = 3, more = items.length - MAX;
+    return `<span class="ct-marks">${items.slice(0, MAX).map(({ n, l }) => {
+      const b = boardOf(n);
+      return `<button class="ct-mark ${l ? "via" : ""} ${isDone(n) ? "done" : ""}" data-goto-task="${n.id}"
+        title="${esc(`${b?.name || ""} › ${n.title || "(untitled)"}${l ? ` · through the list ${l.name}` : ""}${isDone(n) ? " · done" : ""}`)}">`
+        + `<span class="dot" style="background:${b?.color || "var(--faint)"}"></span><span class="mt">${esc(n.title || "(untitled)")}</span></button>`;
+    }).join("")}${more > 0 ? `<span class="ct-mark-more" title="${esc(items.slice(MAX).map(x => x.n.title || "(untitled)").join(", "))}">+${more}</span>` : ""}</span>`;
+  };
+  const row = (id, kind, title, sub) => `<div class="ct-row" data-ct="${id}" data-kind="${kind}" ${kind === "contact" ? `draggable="true"` : ""}
+      title="${kind === "contact" ? "click to edit · drag onto a list to add it there" : "click to edit · drop contacts here to add them"}">
       <span class="ct-ic">${kind === "list" ? ICON.users : ICON.user}</span>
       <span class="ct-main"><span class="ct-t">${esc(title)}</span><span class="ct-sub">${sub}</span></span>
-      ${usedIn(id)}<button class="ghost icon ct-more" title="Contact menu">${ICON.more}</button></div>`;
+      ${marks(id, kind)}<button class="ghost icon ct-more" title="Contact menu" draggable="false">${ICON.more}</button></div>`;
   const lists = [...ws.contactLists].sort((a, b) => a.name.localeCompare(b.name))
     .filter(l => hit(`${l.name} ${listMembers(l).map(c => ctName(c) + " " + c.email).join(" ")}`));
   const people = [...ws.contacts].sort((a, b) => ctName(a).localeCompare(ctName(b)))
@@ -405,14 +421,16 @@ function renderContacts(main) {
     return row(l.id, "list", l.name, m.length ? esc(m.map(ctName).join(", ")) : `<i>no members yet</i>`);
   }).join("");
   const peopleRows = people.map(c => {
-    const inLists = ws.contactLists.filter(l => (l.members || []).includes(c.id)).map(l => l.name);
-    return row(c.id, "contact", ctName(c), esc([c.email, c.note, inLists.length ? `in ${inLists.join(", ")}` : ""].filter(Boolean).join(" · ")));
+    // the lists it is in, as chips after the email
+    const inLists = ws.contactLists.filter(l => (l.members || []).includes(c.id));
+    return row(c.id, "contact", ctName(c), esc([c.email, c.note].filter(Boolean).join(" · "))
+      + inLists.map(l => `<span class="ct-lchip" title="in the list ${esc(l.name)}">${ICON.users}${esc(l.name)}</span>`).join(""));
   }).join("");
   const none = words.length ? "No match." : null;
   // Lists above Contacts, or side by side (a view option); each with a +
   // in its header like a board's sections
   const side = vopt("ctSide", false);
-  main.innerHTML = `<div class="vwrap ctv">${vbar(`<span class="hint">One address book for every board. On a task, use <b>+ contact</b> or right-click › Add contact or list.</span><span class="spacer"></span>
+  main.innerHTML = `<div class="vwrap ctv">${vbar(`<span class="hint">One address book for every board. Drag a contact onto a list to add it there; on a task, use <b>+ contact</b> or right-click › Add contact or list.</span><span class="spacer"></span>
       ${optCheck("ctSide", false, "Side by side")}`)}
     <div class="ct-cols ${side ? "side" : ""}">
       <section class="ct-block"><div class="ct-head">${ICON.users}<h2>Lists</h2><span class="n">${ws.contactLists.length}</span><span class="spacer"></span>
@@ -427,8 +445,52 @@ document.addEventListener("click", e => {
   if (ui.view !== "contacts") return;
   const b = e.target.closest?.("#main [data-ctv]");
   if (b) { (b.dataset.ctv === "new-list" ? editContactList : editContact)(null); return; }
+  const t = e.target.closest?.("#main [data-goto-task]");
+  if (t) { const n = note(t.dataset.gotoTask); if (n) openNote(n); return; }
   const r = e.target.closest?.("#main .ct-row[data-ct]");
   if (r) { const it = ctItem(r.dataset.ct); if (it) (it.kind === "list" ? editContactList : editContact)(it.x.id); }
+});
+
+// drag a contact onto a list to add it there (its own drag state, apart
+// from the board's cards and links)
+let ctDrag = null;
+const ctDropList = e => ctDrag && ui.view === "contacts" ? e.target.closest?.("#main .ct-row[data-kind=list]") : null;
+const clearCtDrop = () => $$(".ct-row.ct-drop").forEach(x => x.classList.remove("ct-drop"));
+document.addEventListener("dragstart", e => {
+  if (ui.view !== "contacts") return;
+  const r = e.target.closest?.("#main .ct-row[data-kind=contact]"); if (!r) return;
+  const c = contactById(r.dataset.ct); if (!c) return;
+  ctDrag = c.id;
+  e.dataTransfer.effectAllowed = "copy";
+  e.dataTransfer.setData("text/plain", c.email);
+  r.classList.add("dragging");
+  $("#main .ct-cols")?.classList.add("ct-dragging");
+});
+document.addEventListener("dragover", e => {
+  const l = ctDropList(e);
+  if (!l) { if (ctDrag) clearCtDrop(); return; }
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "copy";
+  if (!l.classList.contains("ct-drop")) { clearCtDrop(); l.classList.add("ct-drop"); }
+});
+document.addEventListener("drop", e => {
+  const el = ctDropList(e); if (!el) return;
+  e.preventDefault();
+  const l = contactListById(el.dataset.ct), c = contactById(ctDrag);
+  ctDrag = null; clearCtDrop();
+  if (!l || !c) return;
+  l.members ||= [];
+  if (l.members.includes(c.id)) { toast(`${esc(ctName(c))} is already in ${esc(l.name)}.`); return; }
+  const snapshot = JSON.stringify(ws);
+  l.members.push(c.id);
+  save(); render();
+  offerUndo(`Added ${esc(ctName(c))} to ${esc(l.name)}.`, snapshot);
+});
+document.addEventListener("dragend", () => {
+  if (!ctDrag) return;
+  ctDrag = null; clearCtDrop();
+  $$(".ct-row.dragging").forEach(x => x.classList.remove("dragging"));
+  $("#main .ct-cols")?.classList.remove("ct-dragging");
 });
 
 // ---------- the task panel: + contact ----------

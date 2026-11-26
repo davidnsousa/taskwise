@@ -77,7 +77,8 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - Every link has a menu from its ⋯ or a right-click, links typed in a task's text included
 
 **Contacts**
-- One address book for every board, in the Contacts view: people (name, email, an optional note) and lists of them; a contact can be in several lists
+- One address book for every board, in the Contacts view: people (name, email, an optional note) and lists of them; a contact can be in several lists, shown as chips on it. Drag a contact onto a list to add it there
+- Contacts and lists carry markers for the tasks they're on (through a list, too); click one to open the task
 - A list can be filled by pasting rows from a spreadsheet, a CSV or an email's To line: the separator (tabs, semicolons, commas, `|`) is found by itself, a header row's name and email columns (or first and last name) are used, and a preview shows which contacts are new before they're added
 - Add contacts or whole lists to a task with **+ contact** in its panel (where you can also add a new contact on the spot), or from the task's right-click menu › Add contact or list…
 - A contact or list on a task opens a menu (click, ⋯ or right-click): new email to them as To, CC or BCC (the task's title is the subject), copy the addresses, edit, or remove from the task. The task's own menu can email everyone on it

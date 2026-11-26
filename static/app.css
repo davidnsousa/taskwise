@@ -1040,9 +1040,15 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .mem-empty { color: var(--faint); font-size: calc(12.5px * var(--ui-scale)); padding: 14px; text-align: center; border: 1px dashed var(--border); border-radius: 10px; }
 
 /* the Contacts view: lists beside people */
-.ct-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
-.ct-block { background: var(--col); border-radius: 14px; padding: 6px 6px 8px; }
-.ct-head { display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px; }
+/* the same width and panels as the Links view; Lists above Contacts, or
+   side by side (view option) */
+.vwrap.ctv { max-width: 1100px; width: 100%; margin: 0 auto; gap: 10px; }
+.ct-cols { display: grid; grid-template-columns: 1fr; gap: 10px; align-items: start; }
+.ct-cols.side { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.ct-block { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-sm); padding: 0 8px 8px; }
+.ct-head { display: flex; align-items: center; gap: 8px; padding: 10px 6px 8px; }
+.ct-head > .ic { color: var(--faint); }
+.ct-head .ghost.icon { width: 26px; height: 26px; }
 .ct-head h2 { margin: 0; font-size: calc(14px * var(--ui-scale)); font-weight: 650; letter-spacing: -0.01em; }
 .ct-head .n { font-size: calc(12px * var(--ui-scale)); color: var(--faint); font-variant-numeric: tabular-nums; }
 .ct-row { display: flex; align-items: center; gap: 10px; padding: 7px 6px 7px 10px; border-radius: 9px; cursor: pointer; }

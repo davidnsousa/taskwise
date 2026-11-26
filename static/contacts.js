@@ -409,12 +409,17 @@ function renderContacts(main) {
     return row(c.id, "contact", ctName(c), esc([c.email, c.note, inLists.length ? `in ${inLists.join(", ")}` : ""].filter(Boolean).join(" · ")));
   }).join("");
   const none = words.length ? "No match." : null;
-  main.innerHTML = `<div class="vwrap ctv">${vbar(`<span class="hint">One address book for every board. On a task, use <b>+ contact</b> to add people or whole lists.</span><span class="spacer"></span>
-      <button data-ctv="new-list">${ICON.users} New list</button><button class="primary" data-ctv="new-contact">${ICON.plusSm} New contact</button>`)}
-    <div class="ct-cols">
-      <section class="ct-block"><div class="ct-head"><h2>Lists</h2><span class="n">${ws.contactLists.length}</span></div>
+  // Lists above Contacts, or side by side (a view option); each with a +
+  // in its header like a board's sections
+  const side = vopt("ctSide", false);
+  main.innerHTML = `<div class="vwrap ctv">${vbar(`<span class="hint">One address book for every board. On a task, use <b>+ contact</b> or right-click › Add contact or list.</span><span class="spacer"></span>
+      ${optCheck("ctSide", false, "Side by side")}`)}
+    <div class="ct-cols ${side ? "side" : ""}">
+      <section class="ct-block"><div class="ct-head">${ICON.users}<h2>Lists</h2><span class="n">${ws.contactLists.length}</span><span class="spacer"></span>
+        <button class="ghost icon" data-ctv="new-list" title="New list">${ICON.plus}</button></div>
         ${listRows || `<div class="lane-empty">${none || "No lists yet. A list emails several people at once."}</div>`}</section>
-      <section class="ct-block"><div class="ct-head"><h2>Contacts</h2><span class="n">${ws.contacts.length}</span></div>
+      <section class="ct-block"><div class="ct-head">${ICON.user}<h2>Contacts</h2><span class="n">${ws.contacts.length}</span><span class="spacer"></span>
+        <button class="ghost icon" data-ctv="new-contact" title="New contact">${ICON.plus}</button></div>
         ${peopleRows || `<div class="lane-empty">${none || "No contacts yet."}</div>`}</section>
     </div></div>`;
 }

@@ -81,15 +81,16 @@ function emailTo(emails, as = "to", subject = "") {
 }
 
 // ---------- chips on tasks ----------
-function contactChips(n) {
+function contactChipList(n) {
   return (n.contacts || []).map(id => {
     const it = ctItem(id); if (!it) return "";
     const emails = ctEmails(it);
     const title = it.kind === "list" ? `list: ${emails.length} address${emails.length === 1 ? "" : "es"}` : it.x.email || "no email";
     return `<span class="ct-wrap ${it.kind}" data-ct="${id}" data-ct-note="${n.id}" title="${esc(title)}">${it.kind === "list" ? ICON.users : ICON.user}`
       + `<span class="ct-n">${esc(ctLabel(it))}</span><button class="ct-more" title="Contact menu" draggable="false">${ICON.more}</button></span>`;
-  }).join("");
+  }).filter(Boolean);
 }
+const contactChips = n => contactChipList(n).join("");
 
 // ---------- the contact / list menu ----------
 // From a task (n) it can take the contact off the task and uses the task's

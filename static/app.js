@@ -628,10 +628,30 @@ const WAITING = "waiting";
 const tagLabel = (n, t) => t === WAITING && n.waitingFor ? `${esc(t)} <span class="wf">· ${esc(n.waitingFor)}</span>` : esc(t);
 const tagTitle = (n, t) => t === WAITING && n.waitingFor ? ` title="waiting for: ${esc(n.waitingFor)}"` : "";
 const tagPills = n => (n.tags || []).map(t => `<span class="pill" style="--tc:${tagInfo(t).color}"${tagTitle(n, t)}>${tagLabel(n, t)}</span>`).join("");
-const linkChips = n => (n.links || []).map(id => {
+// a task's links as chips, files and folders marked apart from web links
+const linkChipList = n => (n.links || []).map(id => {
   const x = bookmark(id); if (!x) return "";
-  return `<span class="lnk-wrap"><a class="lnk" href="${esc(x.b.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.b.url)}">${fav(x.b.url, ICON.link)}<span>${esc(x.b.title)}</span></a><button class="lnk-more" data-lnk="${id}" data-lnk-note="${n.id}" title="Link menu" draggable="false">${ICON.more}</button></span>`;
-}).join("");
+  return `<span class="lnk-wrap ${isLocal(x.b.url) ? "file" : "web"}"><a class="lnk" href="${esc(x.b.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.b.url)}">${fav(x.b.url, ICON.link)}<span>${esc(x.b.title)}</span></a><button class="lnk-more" data-lnk="${id}" data-lnk-note="${n.id}" title="Link menu" draggable="false">${ICON.more}</button></span>`;
+}).filter(Boolean);
+const linkChips = n => linkChipList(n).join("");
+
+// what's attached to a task (web links, then files, then contacts and
+// lists) gets its own row under the tags. Past ATT_MAX the rest fold into
+// a +N chip; clicking it shows them all on that card until the page reloads.
+const ATT_MAX = 4, attOpen = new Set();
+function attachRow(n) {
+  const links = linkChipList(n);
+  const all = [...links.filter(h => h.includes("lnk-wrap web")), ...links.filter(h => h.includes("lnk-wrap file")), ...contactChipList(n)];
+  if (!all.length) return "";
+  const cut = all.length > ATT_MAX && !attOpen.has(n.id);
+  const shown = cut ? all.slice(0, ATT_MAX - 1) : all;
+  return `<div class="att">${shown.join("")}${cut ? `<button class="att-more" data-att-more="${n.id}" title="Show all ${all.length}" draggable="false">+${all.length - shown.length}</button>` : ""}</div>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest?.("[data-att-more]"); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  attOpen.add(b.dataset.attMore); render();
+}, true);
 
 // the ⋯ on a note's link: open, edit, copy or take it off the note. Caught
 // before the board, card and preview handlers, which would open the note.
@@ -721,7 +741,8 @@ function cardHtml(n) {
     <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>${noteMoreBtn}
     <div class="title">${esc(n.title || "(untitled)")}</div>
     ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
-    <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}${contactChips(n)}</div>
+    <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}</div>
+    ${attachRow(n)}
     ${taskBar(n)}
   </div>`;
 }

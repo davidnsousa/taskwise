@@ -40,7 +40,8 @@ function vCard(n, opts = {}) {
     ${whereHtml(n, opts)}
     <div class="title">${esc(n.title || "(untitled)")}</div>
     ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
-    <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}${linkChips(n)}${contactChips(n)}</div>
+    <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}</div>
+    ${attachRow(n)}
     ${taskBar(n)}
   </div>`;
 }

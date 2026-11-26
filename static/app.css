@@ -367,7 +367,7 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
   color: transparent; transition: all 0.15s; box-shadow: none;
 }
 .check .ic { stroke-width: 3; }
-.check:hover { border-color: var(--ok); color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.check:hover, :root[data-theme="light"] .check:hover { border-color: var(--ok); color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
 .card .check { position: absolute; top: 9px; right: 9px; opacity: 0; }
 .card:hover .check, .card.is-done .check { opacity: 1; }
 /* the ⋯ task menu: left of the check on cards, at the end of rows */
@@ -379,8 +379,8 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
 .crow .note-more { flex-shrink: 0; }
 .notes-table td.rowbtns { white-space: nowrap; }
 .notes-table td.rowbtns .note-more { vertical-align: middle; margin-left: 4px; }
-.is-done .check { background: var(--ok); border-color: var(--ok); color: #fff; }
-.is-done .check:hover { background: var(--ok); color: #fff; }
+.is-done .check, :root[data-theme="light"] .is-done .check { background: var(--ok); border-color: var(--ok); color: #fff; }
+.is-done .check:hover, :root[data-theme="light"] .is-done .check:hover { background: color-mix(in srgb, var(--ok) 85%, #000); border-color: color-mix(in srgb, var(--ok) 85%, #000); color: #fff; }
 
 .pill {
   display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; padding: 0 7px 0 6px; height: 20px; font-size: calc(11px * var(--ui-scale));
@@ -818,7 +818,20 @@ body.app-offline #offline { display: flex; }
 .md ul, .md ol { padding-left: 1.4em; }
 .md li > ul, .md li > ol { margin: 0.1em 0 0.15em; }
 .md li.task { list-style: none; margin-left: -1.3em; display: block; }
-.md li.task > input.md-task { width: 13px; height: 13px; margin: 0 0.45em 0 0; vertical-align: -2px; accent-color: var(--accent); cursor: pointer; }
+.md li.task > input.md-task {
+  appearance: none; -webkit-appearance: none; flex-shrink: 0; position: relative;
+  width: 15px; height: 15px; margin: 0 0.5em 0 0; vertical-align: -3px; cursor: pointer;
+  border: 1.5px solid var(--border-strong); border-radius: 4.5px; background: var(--card);
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.md li.task > input.md-task::after {
+  content: ""; position: absolute; inset: 0; opacity: 0; transform: scale(0.6); transition: opacity 0.15s, transform 0.15s;
+  background: center / 11px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");
+}
+.md li.task > input.md-task:hover { border-color: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 14%, transparent); }
+.md li.task > input.md-task:checked { background: var(--ok); border-color: var(--ok); }
+.md li.task > input.md-task:checked::after { opacity: 1; transform: none; }
+.md li.task > input.md-task:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .md li.task.checked > span { text-decoration: line-through; text-decoration-color: var(--faint); color: var(--faint); }
 .md a { color: var(--accent); text-decoration: none; }
 .md a:hover { text-decoration: underline; }

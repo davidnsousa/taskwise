@@ -1855,6 +1855,73 @@ document.addEventListener("click", e => {
   save(); render();
 }, true);
 
+// ---------- Markdown bar (task editor) ----------
+const MD_BAR = [
+  { k: "task", t: "Checkbox (a subtask)", i: ICON.tasks },
+  { k: "ul", t: "Bulleted list", i: svg('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>') },
+  { k: "ol", t: "Numbered list", i: svg('<path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 4.5 5 4v4M3.8 13.8c.3-.6.8-.8 1.3-.8.7 0 1.1.5 1.1 1 0 .8-2.4 1.8-2.4 3H6.3"/>') },
+  null,
+  { k: "h", t: "Heading", i: svg('<path d="M6 4v16M18 4v16M6 12h12"/>') },
+  { k: "bold", t: "Bold (Ctrl+B)", i: svg('<path d="M7 4h6a4 4 0 0 1 0 8H7zM7 12h7a4 4 0 0 1 0 8H7z"/>') },
+  { k: "italic", t: "Italic (Ctrl+I)", i: svg('<path d="M14 4h-4M14 20h-4M15 4 9 20"/>') },
+  { k: "strike", t: "Strikethrough", i: svg('<path d="M4 12h16M16 6.5C15.3 5 13.8 4 12 4c-2.5 0-4 1.4-4 3.2 0 1.7 1.2 2.4 3 2.8M8 17.5c.7 1.5 2.2 2.5 4 2.5 2.5 0 4-1.4 4-3.2"/>') },
+  null,
+  { k: "link", t: "Link", i: ICON.link },
+  { k: "code", t: "Code", i: svg('<path d="m8 7-5 5 5 5M16 7l5 5-5 5"/>') },
+  { k: "quote", t: "Quote", i: svg('<path d="M4 6h16M8 12h12M8 18h12M4 11v8"/>') },
+];
+// replace a range of the textarea through the browser, so Ctrl+Z undoes it,
+// then select [s0, s1] (offsets in the new text)
+function mdReplace(ta, from, to, text, s0, s1) {
+  ta.setSelectionRange(from, to);
+  if (!document.execCommand("insertText", false, text)) {
+    ta.setRangeText(text, from, to, "end");
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  ta.setSelectionRange(s0, s1);
+}
+const MD_WRAP = { bold: "**", italic: "*", strike: "~~", code: "`" };
+const MD_LINE = { task: "- [ ] ", ul: "- ", quote: "> ", h: "## " };
+function mdFormat(ta, k) {
+  const v = ta.value, a = ta.selectionStart, b = ta.selectionEnd, sel = v.slice(a, b);
+  if (MD_WRAP[k]) {
+    const m = MD_WRAP[k];
+    // already wrapped (inside or just outside the selection): unwrap
+    if (sel.length >= 2 * m.length && sel.startsWith(m) && sel.endsWith(m)) return mdReplace(ta, a, b, sel.slice(m.length, -m.length), a, b - 2 * m.length);
+    if (v.slice(a - m.length, a) === m && v.slice(b, b + m.length) === m && !(m === "*" && (v[a - 2] === "*" || v[b + 1] === "*"))) return mdReplace(ta, a - m.length, b + m.length, sel, a - m.length, b - m.length);
+    if (k === "code" && sel.includes("\n")) return mdReplace(ta, a, b, "```\n" + sel + "\n```", a + 4, a + 4 + sel.length);
+    return mdReplace(ta, a, b, m + sel + m, a + m.length, b + m.length);
+  }
+  if (k === "link") {
+    if (/^(https?:\/\/|www\.)\S+$/.test(sel)) return mdReplace(ta, a, b, `[](${sel})`, a + 1, a + 1);
+    const text = sel || "text";
+    return mdReplace(ta, a, b, `[${text}](https://)`, a + text.length + 3, a + text.length + 11);
+  }
+  // line formats work on every line the selection touches
+  const l0 = v.lastIndexOf("\n", a - 1) + 1;
+  let l1 = v.indexOf("\n", b > a && v[b - 1] === "\n" ? b - 1 : b); if (l1 < 0) l1 = v.length;
+  const lines = v.slice(l0, l1).split("\n");
+  const LIST = /^(\s*)(?:[-*+]\s+\[[ xX]\]\s+|[-*+]\s+|\d+[.)]\s+|>\s?|#{1,6}\s+)?/;
+  const strip = s => s.replace(LIST, "$1");
+  const has = s => k === "ol" ? /^\s*\d+[.)]\s+/.test(s) : k === "task" ? /^\s*[-*+]\s+\[[ xX]\]\s+/.test(s)
+    : k === "ul" ? /^\s*[-*+]\s+(?!\[[ xX]\]\s)/.test(s) : k === "quote" ? /^\s*>/.test(s) : /^\s*#{1,6}\s+/.test(s);
+  const filled = lines.filter(s => s.trim());
+  const off = filled.length > 0 && filled.every(has);   // all have it: take it off
+  let i = 0;
+  const out = lines.map(s => {
+    if (!s.trim() && lines.length > 1) return s;
+    const ind = s.match(/^\s*/)[0], rest = strip(s).slice(ind.length);
+    if (off) return ind + rest;
+    return ind + (k === "ol" ? `${++i}. ` : MD_LINE[k]) + rest;
+  }).join("\n");
+  // one line and no selection: keep the cursor at the same place in the text
+  if (a === b && lines.length === 1) {
+    const pos = Math.max(l0, a + out.length - (l1 - l0));
+    return mdReplace(ta, l0, l1, out, pos, pos);
+  }
+  return mdReplace(ta, l0, l1, out, l0, l0 + out.length);
+}
+
 function openNote(n, { panel = null, fresh = false } = {}) {
   if (!n) return;
   n.body ||= "";
@@ -1870,6 +1937,7 @@ function openNote(n, { panel = null, fresh = false } = {}) {
       <label class="f" style="flex:1.3">Board<select id="nBoard">${boardOptions(n.boardId, { allowAsleep: false })}</select></label>
       <label class="f" style="flex:1">Section<select id="nSection">${sectionOptions()}</select></label>
     </div></div>
+    <div class="md-bar" id="nMdBar">${MD_BAR.map(x => x ? `<button type="button" data-md="${x.k}" title="${x.t}">${x.i}</button>` : `<span class="sep"></span>`).join("")}</div>
     <textarea class="ne-src" id="nSrc" placeholder="# Title" spellcheck="true"></textarea>
     <div class="ne-preview ${settings.previewClosed ? "closed" : ""}" id="nPreview">
       <button class="ne-preview-head" id="nPreviewHead" title="Show or hide the preview"><span class="arrow">${ICON.chevron}</span>Preview</button>
@@ -1966,6 +2034,15 @@ function openNote(n, { panel = null, fresh = false } = {}) {
   renderView();
   if (fresh) { src.focus(); src.setSelectionRange(src.value.length, src.value.length); }
   src.oninput = () => { Object.assign(n, parseSource(src.value)); fit(); renderView(); touch(); };
+  // the bar over the text: buttons that add Markdown, without taking the focus
+  const bar = $("#nMdBar", o);
+  bar.addEventListener("mousedown", e => e.preventDefault());
+  bar.addEventListener("click", e => { const k = e.target.closest("[data-md]")?.dataset.md; if (k) { src.focus(); mdFormat(src, k); } });
+  src.addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+    const k = { b: "bold", i: "italic" }[e.key.toLowerCase()];
+    if (k) { e.preventDefault(); mdFormat(src, k); }
+  });
   $("#nPreviewHead", o).onclick = () => {
     settings.previewClosed = !settings.previewClosed;
     $("#nPreview", o).classList.toggle("closed", settings.previewClosed);

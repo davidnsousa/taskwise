@@ -58,6 +58,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - A badge at the top right shows one number for what you got done today, tasks and subtasks together; click it to see which ones; it lights up on your best day of the week
 - Each task has a ⋯ button with the same menu as its right-click; on boards a card shows its whole text
 - The task panel shows the Markdown with a rendered preview under it that folds away
+- A bar over the text adds checkboxes, lists, headings, bold, italic, strikethrough, links, code and quotes (Ctrl+B and Ctrl+I work too)
 - Sort the tasks from the filter bar: manual, due date, title, newest, oldest or recently edited
 - Six themes from dark to light (Midnight, Dim, Dusk, Mist, Paper, Light), picked from the button next to Settings
 - The `waiting` tag asks what the task waits for, and shows it on the card

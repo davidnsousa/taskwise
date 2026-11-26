@@ -805,6 +805,12 @@ body.app-offline #offline { display: flex; }
   padding: 6px 8px; margin: -6px -8px; width: calc(100% + 16px) !important;
   background: none; border-color: var(--border); box-shadow: none;
 }
+/* the Markdown bar over the task's text */
+.modal .md-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 0 -8px 10px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--raised); }
+.modal .md-bar button, :root[data-theme="light"] .modal .md-bar button { width: 28px; height: 26px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; color: var(--muted); background: none; border: none; box-shadow: none; }
+.modal .md-bar button:hover { color: var(--text); background: var(--hover); }
+.modal .md-bar .ic { width: 15px; height: 15px; }
+.modal .md-bar .sep { width: 1px; height: 16px; margin: 0 4px; background: var(--border); }
 .modal textarea.ne-src:focus { border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px var(--accent-bg); }
 
 /* rendered Markdown, on cards and in the note panel */

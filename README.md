@@ -50,7 +50,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 
 **Boards**
 - Groups, boards and sections, with drag and drop
-- Collapse, hide or hibernate groups and boards
+- Collapse or hibernate groups and boards
 
 **Tasks**
 - Add with the + on any section; the new task opens straight in the task panel

@@ -236,7 +236,7 @@ function renderSections(main) {
       const fk = `sections:${c.key}:${b.id}`;
       const folded = isFolded(fk);
       return `<div class="lane-sub ${folded ? "folded" : ""}" data-sub="${b.id}" style="--pc:${b.color || "var(--border)"}" title="Drop here: move it to “${esc(c.name)}” on ${esc(b.name)}">
-        <div class="sub-head" data-fold="${esc(fk)}"><span class="arrow">${ICON.chevron}</span><span class="dot"></span><span class="nm">${esc(b.name)}</span>${hiddenB(b) ? `<span class="flag" title="hidden board">${ICON.eyeOff}</span>` : ""}<span class="n">${list.length}</span></div>
+        <div class="sub-head" data-fold="${esc(fk)}"><span class="arrow">${ICON.chevron}</span><span class="dot"></span><span class="nm">${esc(b.name)}</span><span class="n">${list.length}</span></div>
         ${folded ? "" : `<div class="sub-body">${list.map(n => vCard(n, { showBoard: false, showSection: false })).join("") || `<div class="lane-empty">Empty</div>`}</div>`}
       </div>`;
     }).join("");
@@ -321,7 +321,7 @@ function renderBookmarks(main) {
     const fk = "bmb:" + b.id, folded = isFolded(fk);
     return `<section class="bmv-board ${folded ? "folded" : ""}" data-board="${b.id}" style="--pc:${b.color || "var(--border)"}">
       <div class="bmv-head" data-fold="${esc(fk)}"><span class="arrow">${ICON.chevron}</span><span class="dot"></span><h2>${esc(b.name)}</h2>
-        <span class="hint">${esc(group(b.groupId)?.name || "")}</span>${hiddenB(b) ? `<span class="flag" title="hidden board">${ICON.eyeOff}</span>` : ""}
+        <span class="hint">${esc(group(b.groupId)?.name || "")}</span>
         <span class="n">${(b.bookmarks || []).length}</span>
         ${showEmpty ? `<button class="ghost bmv-new-folder" data-vact="new-bmf" data-board="${b.id}" title="New folder in this board">${ICON.plus} Folder</button>` : ""}</div>
       ${folded ? "" : `<div class="bmv-body">${inner || `<div class="bmv-empty">No links — drag some here</div>`}</div>`}
@@ -352,7 +352,7 @@ function renderList(main) {
     const fk = "list:" + b.id, folded = isFolded(fk);
     return `<section class="list-board ${folded ? "folded" : ""}" style="--pc:${b.color || "var(--border)"}">
       <div class="list-head" data-fold="${esc(fk)}"><span class="arrow">${ICON.chevron}</span><span class="dot"></span><h2>${esc(b.name)}</h2>
-        <span class="hint">${esc(group(b.groupId)?.name || "")}</span>${hiddenB(b) ? `<span class="flag" title="hidden board">${ICON.eyeOff}</span>` : ""}
+        <span class="hint">${esc(group(b.groupId)?.name || "")}</span>
         <span class="n">${list.length}</span></div>
       ${folded ? "" : `<div class="list-rows">${sortNotes(list).map(n => rowHtml(n)).join("")}</div>`}
     </section>`;

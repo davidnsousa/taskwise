@@ -556,7 +556,6 @@ body.sidebar-open #sidebar {
 .tree-row .tg:hover { color: var(--text); background: var(--hover); }
 .tree-row .tg.on { color: var(--accent); background: var(--accent-bg); }
 .tree-row .tg.inherited { opacity: 0.6; color: var(--accent); }
-.tree-row.is-hidden .name, .tree-row.is-hidden .dot { opacity: 0.5; }
 .tree-row.sleeping .name { color: var(--faint); font-style: italic; }
 .tree-row.sleeping .dot { opacity: 0.35; }
 .tree-row input.rename { font-size: calc(12.5px * var(--ui-scale)); }

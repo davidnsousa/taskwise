@@ -1,10 +1,8 @@
-// taskwise - groups of boards (columns) with sections and notes, plus a table
+// taskwise - groups of boards (columns) with sections and tasks, plus a table
 // view, over one board.json (see main.py).
 //
 // Each group and each board can be:
 //   collapsed   - stays in place, folded to a narrow strip
-//   hidden      - off the board view, but its notes still show in the table,
-//                 search and due filters
 //   hibernating - put to sleep: gone from everything (board, table, search,
 //                 filters, counts) until you wake it from the sidebar
 "use strict";
@@ -36,7 +34,6 @@ const ICON = {
   grip: svg('<circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/>', 14),
   bookmark: svg('<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>', 13),
   eye: svg('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>', 14),
-  eyeOff: svg('<path d="M9.9 4.2A10 10 0 0 1 12 4c6.5 0 10 8 10 8a17 17 0 0 1-2.2 3.2M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M2 2l20 20"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>', 14),
   moon: svg('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>', 14),
   sun: svg('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>', 14),
   file: svg('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>', 14),
@@ -86,6 +83,9 @@ async function loadBoard() {
     if (!group(b.groupId)) { b.groupId = (ws.groups[0] || newGroup("General")).id; changed = true; }
   }
   for (const n of ws.notes) if (n.sectionId && !section(boardOf(n), n.sectionId)) { n.sectionId = null; changed = true; }
+  // hiding boards and groups was dropped (collapse and hibernate cover it):
+  // anything hidden comes back
+  for (const x of [...ws.groups, ...ws.boards]) if ("hidden" in x) { delete x.hidden; changed = true; }
   if (data.board.version !== 2) { ws.version = 2; changed = true; }
   const merged = mergeDuplicateBookmarks();
   if (merged) changed = true;
@@ -281,7 +281,6 @@ function markDone(n) {
 }
 const notesLinkedTo = bmId => ws.notes.filter(n => (n.links || []).includes(bmId));
 const asleep = b => !b || b.hibernated || group(b.groupId)?.hibernated;
-const hiddenB = b => !asleep(b) && (b.hidden || group(b.groupId)?.hidden);
 const awakeNotes = () => ws.notes.filter(n => !asleep(boardOf(n)));
 
 function newGroup(name) {
@@ -409,7 +408,7 @@ function boardOptions(selected, { includeAll = false, allowAsleep = false } = {}
     const bs = boardsIn(g).filter(b => allowAsleep || !asleep(b) || b.id === selected);
     if (!bs.length) continue;
     html += `<optgroup label="${esc(g.name)}">` + bs.map(b =>
-      `<option value="${b.id}" ${b.id === selected ? "selected" : ""}>${esc(b.name)}${asleep(b) ? " (hibernating)" : hiddenB(b) ? " (hidden)" : ""}</option>`).join("") + `</optgroup>`;
+      `<option value="${b.id}" ${b.id === selected ? "selected" : ""}>${esc(b.name)}${asleep(b) ? " (hibernating)" : ""}</option>`).join("") + `</optgroup>`;
   }
   return html;
 }
@@ -458,9 +457,8 @@ function renderCounts() {
   $("#count").textContent = filtersActive() ? `${shown} of ${awake.length} tasks` : `${awake.length} tasks`;
   $("#clearFilters").style.display = filtersActive() ? "" : "none";
   // what's out of sight, so it's never forgotten
-  const hidden = ws.boards.filter(hiddenB).length, sleeping = ws.boards.filter(asleep).length;
+  const sleeping = ws.boards.filter(asleep).length;
   const parts = [];
-  if (hidden) parts.push(`${ICON.eyeOff}${hidden} hidden`);
   if (sleeping) parts.push(`${ICON.moon}${sleeping} hibernating`);
   const el = $("#outOfSight");
   el.innerHTML = parts.join('<span class="sep"></span>');
@@ -764,12 +762,11 @@ function columnHtml(b) {
   const arch = mine.filter(inArchive), archShown = arch.filter(n => matches(n, { archive: true }));
   const bms = b.bookmarks || [];
   const listFor = secId => sortNotes(shown.filter(n => (n.sectionId || null) === secId));
-  const flags = `${b.hidden ? `<span class="flag" title="hidden">${ICON.eyeOff}</span>` : ""}`;
   return `<section class="column ${b.collapsed ? "collapsed" : ""}" data-board="${b.id}" style="--pc:${b.color || "var(--border)"}">
     <div class="col-head" title="drag to move the board · double-click the name to rename">
       <span class="grip">${ICON.grip}</span>
       <span class="dot"></span>
-      <h2>${esc(b.name)}</h2>${flags}
+      <h2>${esc(b.name)}</h2>
       <span class="n">${shown.length === notes.length ? notes.length : `${shown.length}/${notes.length}`}</span>
       <button class="ghost icon" data-act="board-menu" title="Board menu">${ICON.more}</button>
     </div>
@@ -823,10 +820,10 @@ function renderBoard(main) {
   }
 
   const only = ui.board ? boardById(ui.board) : null;
-  const groups = only ? [group(only.groupId)] : ws.groups.filter(g => !g.hidden && !g.hibernated);
+  const groups = only ? [group(only.groupId)] : ws.groups.filter(g => !g.hibernated);
   main.innerHTML = `<div class="canvas">${groups.map(g => {
-    const bs = only ? [only] : boardsIn(g).filter(b => !b.hidden && !b.hibernated);
-    const away = boardsIn(g).filter(b => b.hidden || b.hibernated).length;
+    const bs = only ? [only] : boardsIn(g).filter(b => !b.hibernated);
+    const away = boardsIn(g).filter(b => b.hibernated).length;
     const count = ws.notes.filter(n => !asleep(boardOf(n)) && boardOf(n)?.groupId === g.id && !inArchive(n) && matches(n)).length;
     return `<section class="group ${g.collapsed && !only ? "collapsed" : ""}" data-group="${g.id}" style="--gc:${g.color}">
       <div class="group-head" title="drag to move the group · double-click the name to rename">
@@ -835,7 +832,7 @@ function renderBoard(main) {
         <span class="gdot"></span>
         <h3>${esc(g.name)}</h3>
         <span class="n" title="tasks">${count}</span>
-        ${away && !only ? `<button class="away" data-act="open-sidebar" title="boards hidden or hibernating in this group - manage them in the sidebar">${away} out of sight</button>` : ""}
+        ${away && !only ? `<button class="away" data-act="open-sidebar" title="boards hibernating in this group - wake them in the sidebar">${away} hibernating</button>` : ""}
         <span class="spacer"></span>
         <button class="ghost icon" data-act="add-board" title="Add a board to this group">${ICON.plus}</button>
         <button class="ghost icon" data-act="group-menu" title="Group menu">${ICON.more}</button>
@@ -871,15 +868,13 @@ function renderSidebar() {
     const isG = kind === "group";
     const sleeping = isG ? x.hibernated : asleep(x);
     const inherited = !isG && !x.hibernated && group(x.groupId)?.hibernated;
-    const hid = isG ? x.hidden : x.hidden;
     const n = isG ? ws.notes.filter(m => boardOf(m)?.groupId === x.id).length : ws.notes.filter(m => m.boardId === x.id).length;
-    return `<div class="tree-row t-${kind} ${extraCls} ${sleeping ? "sleeping" : ""} ${hid ? "is-hidden" : ""}" data-${kind}="${x.id}">
+    return `<div class="tree-row t-${kind} ${extraCls} ${sleeping ? "sleeping" : ""}" data-${kind}="${x.id}">
       <span class="${isG ? "gdot" : "dot"}" style="background:${x.color || "var(--faint)"}"></span>
       <span class="name" title="${isG ? "" : "click to show it on the board"}">${esc(x.name)}</span>
       <span class="n">${n}</span>
       <span class="acts">
         <button class="tg ${x.collapsed ? "on" : ""}" data-t="collapsed" title="${x.collapsed ? "Expand" : "Collapse"}">${x.collapsed ? ICON.unfold : ICON.fold}</button>
-        <button class="tg ${hid ? "on" : ""}" data-t="hidden" title="${hid ? "Show" : "Hide (tasks stay in table & search)"}">${hid ? ICON.eyeOff : ICON.eye}</button>
         <button class="tg ${x.hibernated ? "on" : ""} ${inherited ? "inherited" : ""}" data-t="hibernated" title="${x.hibernated ? "Wake up" : inherited ? "Its group is hibernating" : "Hibernate (gone everywhere until woken)"}">${ICON.moon}</button>
       </span>
     </div>`;
@@ -887,7 +882,7 @@ function renderSidebar() {
   sb.innerHTML = `<div class="sb-head"><span>Boards</span><span class="spacer"></span>
       <button class="ghost icon" data-sb="add-group" title="New group">${ICON.plus}</button>
       <button class="ghost icon" data-sb="close" title="Close sidebar">${ICON.x}</button></div>
-    <div class="sb-legend"><span>${ICON.fold} collapse</span><span>${ICON.eye} hide</span><span>${ICON.moon} hibernate</span></div>
+    <div class="sb-legend"><span>${ICON.fold} collapse</span><span>${ICON.moon} hibernate</span></div>
     <div class="tree">${ws.groups.map(g => `<div class="tree-group">${row("group", g)}
       ${boardsIn(g).map(b => row("board", b)).join("")}
       <button class="tree-add" data-sb="add-board" data-g="${g.id}">${ICON.plusSm} Board</button></div>`).join("")
@@ -916,14 +911,12 @@ $("#sidebar").addEventListener("dblclick", e => {
 
 function setState(x, key, value) {
   x[key] = value;
-  if (value && key === "hibernated") x.hidden = false;
-  if (value && key === "hidden") x.hibernated = false;
   const isGroup = ws.groups.includes(x);
   if (key !== "collapsed" && value && ui.board && (isGroup ? boardById(ui.board)?.groupId === x.id : ui.board === x.id)) ui.board = "";
   save(); render();
   if (value && key !== "collapsed") {
     const what = isGroup ? "group" : "board";
-    const msg = key === "hidden" ? `Hid the ${what} “${esc(x.name)}” — its tasks still show in the table.` : `“${esc(x.name)}” is hibernating — wake it from the sidebar.`;
+    const msg = `“${esc(x.name)}” is hibernating — wake it from the sidebar.`;
     const t = toast(`${msg} <button>Undo</button>`, 7000);
     $("button", t).onclick = () => { x[key] = false; t.classList.remove("show"); save(); render(); };
   }
@@ -938,9 +931,7 @@ function revealBoard(b) {
   const g = group(b.groupId);
   if (asleep(b)) { toast(`“${esc(b.name)}” is hibernating — wake it with ${ICON.moon} first.`); return; }
   let changed = false;
-  if (g.hidden) { g.hidden = false; changed = true; }
   if (g.collapsed) { g.collapsed = false; changed = true; }
-  if (b.hidden) { b.hidden = false; changed = true; }
   if (b.collapsed) { b.collapsed = false; changed = true; }
   if (ui.board && ui.board !== b.id) ui.board = "";
   ui.view = "board";
@@ -950,7 +941,7 @@ function revealBoard(b) {
 }
 function revealGroup(g) {
   if (g.hibernated) { toast(`“${esc(g.name)}” is hibernating — wake it with ${ICON.moon} first.`); return; }
-  if (g.hidden || g.collapsed) { g.hidden = false; g.collapsed = false; save(); }
+  if (g.collapsed) { g.collapsed = false; save(); }
   ui.view = "board"; ui.board = "";
   render();
   flash($(`.group[data-group="${g.id}"]`));
@@ -1365,9 +1356,9 @@ function addGroup() {
 }
 
 function addBoard(groupId) {
-  let g = group(groupId) || ws.groups.find(x => !x.hidden && !x.hibernated) || ws.groups[0];
+  let g = group(groupId) || ws.groups.find(x => !x.hibernated) || ws.groups[0];
   if (!g) g = newGroup("General");
-  g.collapsed = false; g.hidden = false; g.hibernated = false;
+  g.collapsed = false; g.hibernated = false;
   const b = { id: uid(), groupId: g.id, name: "New board", color: PALETTE[ws.boards.length % PALETTE.length], bookmarks: [], sections: [], bookmarksOpen: false };
   let at = ws.boards.length;
   ws.boards.forEach((x, i) => { if (x.groupId === g.id) at = i + 1; });
@@ -1437,7 +1428,6 @@ function popMenu(anchor, html, onPick) {
 const colorRow = cur => `<div class="colors">${PALETTE.map(c => `<button data-color="${c}" class="${cur === c ? "on" : ""}" style="background:${c}"></button>`).join("")}</div>`;
 const stateItems = x => `
   <button data-m="collapsed">${x.collapsed ? ICON.unfold : ICON.fold} ${x.collapsed ? "Expand" : "Collapse"}</button>
-  <button data-m="hidden">${ICON.eyeOff} Hide</button>
   <button data-m="hibernated">${ICON.moon} Hibernate</button>`;
 
 function boardMenu(b, anchor) {
@@ -1458,7 +1448,7 @@ function boardMenu(b, anchor) {
       case "add-sec": addSection(b); break;
       case "add-bm": editBookmark(b, null); break;
       case "only": ui.board = b.id; saveSettings(); render(); break;
-      case "collapsed": case "hidden": case "hibernated": setState(b, d.m, !b[d.m]); break;
+      case "collapsed": case "hibernated": setState(b, d.m, !b[d.m]); break;
       case "delete": deleteBoard(b); break;
     }
   });
@@ -1477,7 +1467,7 @@ function groupMenu(g, anchor) {
     switch (d.m) {
       case "rename": { const h3 = $(`.group[data-group="${g.id}"] .group-head h3`); if (h3) renameInline(h3, g); break; }
       case "add-board": addBoard(g.id); break;
-      case "collapsed": case "hidden": case "hibernated": setState(g, d.m, !g[d.m]); break;
+      case "collapsed": case "hibernated": setState(g, d.m, !g[d.m]); break;
       case "fold-all": boardsIn(g).forEach(b => { b.collapsed = true; }); save(); render(); break;
       case "unfold-all": boardsIn(g).forEach(b => { b.collapsed = false; }); save(); render(); break;
       case "delete": deleteGroup(g); break;
@@ -2412,7 +2402,7 @@ function renderTable(main) {
         <td class="rowbtns"><button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>${noteMoreBtn}</td>
         <td class="t"><div>${esc(n.title || "(untitled)")}</div>${n.body ? `<div class="sub">${esc(MD.plain(n.body.trim().split("\n")[0]))}</div>` : ""}</td>
         <td><span class="sec-cell" style="--pc:${b?.color || "var(--border)"}"><b>${esc(s ? s.name : "General")}</b> — ${esc(b?.name || "?")}</span></td>
-        <td><div class="proj" style="--pc:${b?.color || "var(--border)"}"><i></i>${esc(b?.name || "?")}${hiddenB(b) ? ` <span class="flag" title="hidden board">${ICON.eyeOff}</span>` : ""}</div>
+        <td><div class="proj" style="--pc:${b?.color || "var(--border)"}"><i></i>${esc(b?.name || "?")}</div>
           <div class="sub">${esc(g?.name || "")}</div></td>
         <td class="tags">${tagPills(n)}</td>
         <td>${dueBadge(n) || `<span class="hint">—</span>`}</td>

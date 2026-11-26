@@ -39,15 +39,19 @@ function composeUrl({ to = [], cc = [], bcc = [], subject = "", body = "" }) {
   const enc = s => encodeURIComponent(s).replace(/%40/g, "@").replace(/%2C/g, ",");
   const qs = pairs => pairs.filter(([, v]) => v).map(([k, v]) => `${k}=${enc(v)}`).join("&");
   const j = a => a.join(",");
+  const mailto = () => {
+    const q = qs([["cc", j(cc)], ["bcc", j(bcc)], ["subject", subject], ["body", body]]);
+    return `mailto:${to.map(enc).join(",")}${q ? "?" + q : ""}`;
+  };
   switch (settings.emailApp) {
     case "outlook":
-      return "https://outlook.cloud.microsoft/mail/deeplink/compose?" + qs([["to", j(to)], ["cc", j(cc)], ["bcc", j(bcc)], ["subject", subject], ["body", body]]);
+      // the compose deeplink only takes "to"; CC and BCC go through the
+      // mailto: address Outlook on the web reads when it handles mailto links
+      if (!cc.length && !bcc.length) return "https://outlook.cloud.microsoft/mail/deeplink/compose?" + qs([["to", j(to)], ["subject", subject], ["body", body]]);
+      return "https://outlook.cloud.microsoft/mail/deeplink/compose?mailtouri=" + encodeURIComponent(mailto());
     case "gmail":
       return "https://mail.google.com/mail/?" + qs([["view", "cm"], ["fs", "1"], ["to", j(to)], ["cc", j(cc)], ["bcc", j(bcc)], ["su", subject], ["body", body]]);
-    case "mailto": {
-      const q = qs([["cc", j(cc)], ["bcc", j(bcc)], ["subject", subject], ["body", body]]);
-      return `mailto:${to.map(enc).join(",")}${q ? "?" + q : ""}`;
-    }
+    case "mailto": return mailto();
   }
   return null;
 }
@@ -62,6 +66,9 @@ function emailTo(emails, as = "to", subject = "") {
   }
   if (url.startsWith("mailto:")) location.href = url;
   else window.open(url, "_blank", "noopener,noreferrer");
+  // a web app may leave CC or BCC empty: have the addresses ready to paste
+  if (as !== "to" && settings.emailApp !== "mailto")
+    copyText(emails.join(", ")).then(() => toast(`Also copied ${emails.length === 1 ? "the address" : `the ${emails.length} addresses`} — paste ${emails.length === 1 ? "it" : "them"} into ${as.toUpperCase()} if the field is empty.`, 8000));
 }
 
 // ---------- chips on tasks ----------

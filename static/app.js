@@ -1556,9 +1556,9 @@ document.addEventListener("keydown", e => {
   const o = $(".overlay");
   if (e.key === "Escape" && o) { e.preventDefault(); o._close?.(); return; }
   if (e.key === "/" && !o && !e.target.matches("input, textarea, select")) { e.preventDefault(); $("#search").focus(); }
-  // 1-9 and 0 pick a view (in the order of the buttons at the top)
+  // 1-9 and 0 pick a view (each button's data-key)
   if (/^[0-9]$/.test(e.key) && !o && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.matches("input, textarea, select, [contenteditable]")) {
-    const b = $$("#viewSeg button")[(+e.key || 10) - 1];
+    const b = $(`#viewSeg button[data-key="${e.key}"]`);
     if (b) { ui.view = b.dataset.view; saveSettings(); render(); }
   }
 });

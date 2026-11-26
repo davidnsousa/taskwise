@@ -198,6 +198,105 @@ function editContact(id, { after, name = "", email = "" } = {}) {
   $("#cCancel", o).onclick = closeModal;
   o.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("input[type=text]")) ok(); });
 }
+// ---------- pasting contacts from a spreadsheet ----------
+// Reads rows copied from a spreadsheet (tabs), a CSV (commas or semicolons,
+// quotes respected), "|" tables, one address per line, or an email's To line
+// ("Ada <ada@x.com>; alan@y.org"). A header row with name / email columns
+// (also first + last name, in English or Portuguese) says which column is
+// which; without one, each row's email is found and the name taken from the
+// cells beside it. Returns { rows: [{ name, email }], skipped, sep }.
+const EMAIL_RE = /[^\s<>"'();,:|]+@[^\s<>"'();,:|]+\.[^\s<>"'();,:|]{2,}/;
+function splitCells(line, d) {
+  const out = []; let cur = "", q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') q = false;
+      else cur += ch;
+    } else if (ch === '"' && !cur.trim()) { q = true; cur = ""; }
+    else if (ch === d) { out.push(cur); cur = ""; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out.map(s => s.trim());
+}
+// "Ada Lovelace <ada@x.com>" / "ada@x.com (Ada)" / "ada@x.com"
+function nameAndEmail(s) {
+  const m = s.match(EMAIL_RE); if (!m) return null;
+  const email = m[0].replace(/^mailto:/i, "");
+  const name = s.replace(m[0], "").replace(/[<>()"]/g, " ").replace(/\s+/g, " ").trim();
+  return { name, email };
+}
+const looksLikeName = s => s.length <= 60 && /^[\p{L}][\p{L}\p{M}'’ .-]*$/u.test(s);
+function parseContacts(text) {
+  const lines = String(text || "").replace(/\r\n?/g, "\n").split("\n").map(s => s.trimEnd()).filter(s => s.trim());
+  if (!lines.length) return { rows: [], skipped: 0, sep: "" };
+  // the column separator: tabs win (a spreadsheet); otherwise the one found
+  // the same number of times on most lines
+  let sep = "";
+  if (lines.some(s => s.includes("\t"))) sep = "\t";
+  else for (const d of [";", ",", "|"]) {
+    const counts = lines.map(s => splitCells(s, d).length - 1);
+    const n = counts.filter(c => c > 0).length;
+    if (n && n >= Math.ceil(lines.length / 2) && (lines.length === 1 || new Set(counts.filter(c => c > 0)).size === 1)) { sep = d; break; }
+  }
+  const SEP_NAMES = { "\t": "tabs", ";": "semicolons", ",": "commas", "|": "vertical bars", "": "one per line" };
+  // one line of several addresses (an email's To line): every piece is a contact
+  if (lines.length === 1 && (lines[0].match(new RegExp(EMAIL_RE.source, "g")) || []).length > 1) {
+    const d = sep && sep !== "\t" ? sep : /;/.test(lines[0]) ? ";" : ",";
+    const parts = splitCells(lines[0], d).filter(Boolean);
+    const rows = parts.map(nameAndEmail).filter(Boolean);
+    return { rows: dedupe(rows), skipped: parts.length - rows.length, sep: SEP_NAMES[d] + ", one line" };
+  }
+  const table = lines.map(s => sep ? splitCells(s, sep) : [s.trim()]);
+  // a header row: no email in it, and a cell that names the email column
+  let cols = null;
+  const head = table[0];
+  if (!head.some(c => EMAIL_RE.test(c)) && head.some(c => /e-?mail|correio/i.test(c))) {
+    const find = re => head.findIndex(c => re.test(c.trim()));
+    const email = find(/e-?mail|correio/i);
+    const last = find(/last|surname|family|apelido|sobrenome/i);
+    const first = find(/first|given|primeiro/i);
+    let name = head.findIndex((c, i) => i !== email && i !== last && i !== first && /name|nome/i.test(c));
+    cols = { email, name: first >= 0 ? first : name, last: last >= 0 ? last : -1 };
+    table.shift();
+  }
+  const rows = []; let skipped = 0;
+  for (const cells of table) {
+    let r = null;
+    if (cols) {
+      const em = (cells[cols.email] || "").match(EMAIL_RE)?.[0] || cells.map(c => c.match(EMAIL_RE)?.[0]).find(Boolean);
+      if (em) r = { email: em, name: [cells[cols.name], cols.last >= 0 ? cells[cols.last] : ""].filter(Boolean).join(" ").trim() };
+    } else {
+      const ei = cells.findIndex(c => EMAIL_RE.test(c));
+      if (ei >= 0) {
+        r = nameAndEmail(cells[ei]);
+        if (!r.name) {
+          // the name: the first name-like cell, or the first two when they are
+          // single words (first and last name in their own columns)
+          const names = cells.filter((c, i) => i !== ei && c && looksLikeName(c));
+          r.name = names.length >= 2 && !/\s/.test(names[0]) && !/\s/.test(names[1]) ? `${names[0]} ${names[1]}` : names[0] || "";
+        }
+      }
+    }
+    if (r) rows.push({ name: r.name.replace(/\s+/g, " ").trim(), email: r.email.trim() }); else skipped++;
+  }
+  return { rows: dedupe(rows), skipped, sep: SEP_NAMES[sep] + (cols ? ", with a header row" : "") };
+}
+// the same address twice: keep the first, with a name if either had one.
+// "Lovelace, Ada" (address books) reads "Ada Lovelace"
+function dedupe(rows) {
+  const by = new Map();
+  for (const r of rows) {
+    const m = r.name.match(/^([^,]+),\s*([^,]+)$/);
+    if (m) r.name = `${m[2].trim()} ${m[1].trim()}`;
+    const k = r.email.toLowerCase(), had = by.get(k);
+    if (!had) by.set(k, { ...r }); else if (!had.name && r.name) had.name = r.name;
+  }
+  return [...by.values()];
+}
+
 function editContactList(id, { after } = {}) {
   const l = id ? contactListById(id) : null;
   const sorted = [...ws.contacts].sort((a, b) => ctName(a).localeCompare(ctName(b)));
@@ -207,7 +306,10 @@ function editContactList(id, { after } = {}) {
       ${sorted.length > 8 ? `<input type="search" id="clFilter" placeholder="filter contacts…">` : ""}
       <div class="link-pick ct-members" id="clMembers">${sorted.map(c =>
         `<label data-q="${esc((ctName(c) + " " + c.email).toLowerCase())}"><input type="checkbox" data-c="${c.id}" ${l && (l.members || []).includes(c.id) ? "checked" : ""}>${esc(ctName(c))} <span class="u">${esc(c.email)}</span></label>`).join("")
-        || `<div class="none">No contacts yet. Add the list, then add contacts to it from the Contacts view.</div>`}</div></div>
+        || `<div class="none">No contacts yet — paste them below.</div>`}</div></div>
+    <div class="section-f"><span class="lbl">Add from a spreadsheet <span class="hint">· copy the rows (with or without a header) and paste them here</span></span>
+      <textarea id="clPaste" rows="3" spellcheck="false" placeholder="Name&#9;Email&#10;Ada Lovelace&#9;ada@example.com&#10;Alan Turing&#9;alan@example.org"></textarea>
+      <div class="imp" id="clImp" hidden></div></div>
     <div id="clErr" class="due-preview bad"></div>
     <div class="foot"><div class="spacer"></div><button id="clCancel">Cancel</button><button class="primary" id="clOk">${l ? "Save" : "Add list"}</button></div>`, "small");
   $("#clName", o).value = l?.name || "";
@@ -216,12 +318,40 @@ function editContactList(id, { after } = {}) {
     const q = e.target.value.toLowerCase();
     $$("#clMembers label", o).forEach(r => { r.style.display = r.dataset.q.includes(q) ? "" : "none"; });
   });
+  // pasted contacts: previewed as they will be added, each can be unticked
+  let pasted = [];
+  const byEmail = em => ws.contacts.find(c => c.email.toLowerCase() === em.toLowerCase());
+  const renderImport = () => {
+    const box = $("#clImp", o), p = parseContacts($("#clPaste", o).value);
+    pasted = p.rows;
+    box.hidden = !$("#clPaste", o).value.trim();
+    const fresh = pasted.filter(r => !byEmail(r.email)).length;
+    const skip = p.skipped ? ` · ${p.skipped} row${p.skipped === 1 ? "" : "s"} without an email skipped` : "";
+    box.innerHTML = `<div class="imp-sum">${pasted.length
+        ? `<b>${pasted.length}</b> contact${pasted.length === 1 ? "" : "s"} found (${fresh} new, ${pasted.length - fresh} already in your contacts) · separated by ${p.sep}${skip}`
+        : `No email addresses found${skip}.`}</div>`
+      + (pasted.length ? `<div class="link-pick imp-rows">${pasted.map((r, i) => {
+        const had = byEmail(r.email);
+        return `<label><input type="checkbox" data-imp="${i}" checked><span class="imp-n">${esc(r.name || had?.name || "(no name)")}</span>`
+          + `<span class="u">${esc(r.email)}</span><span class="imp-tag ${had ? "" : "new"}">${had ? "existing" : "new"}</span></label>`;
+      }).join("")}</div>` : "");
+  };
+  $("#clPaste", o).addEventListener("input", renderImport);
   const ok = () => {
     const nm = $("#clName", o).value.trim();
     if (!nm) { $("#clErr", o).textContent = "Give the list a name."; return; }
     const x = l || { id: uid() };
     x.name = nm;
     x.members = $$("[data-c]", o).filter(b => b.checked).map(b => b.dataset.c);
+    // the ticked pasted contacts: the same address reuses the contact (and
+    // gives it a name if it had none); others become new contacts
+    for (const b of $$("[data-imp]", o)) {
+      const r = pasted[+b.dataset.imp]; if (!b.checked || !r) continue;
+      let c = byEmail(r.email);
+      if (!c) { c = { id: uid(), name: r.name, email: r.email }; ws.contacts.push(c); }
+      else if (!c.name && r.name) c.name = r.name;
+      if (!x.members.includes(c.id)) x.members.push(c.id);
+    }
     if (!l) ws.contactLists.push(x);
     save(); closeModal(); render();
     after?.(x);

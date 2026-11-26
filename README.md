@@ -80,7 +80,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - One address book for every board, in the Contacts view: people (name, email, an optional note) and lists of them; a contact can be in several lists
 - Add contacts or whole lists to a task with **+ contact** in its panel, where you can also add a new contact on the spot
 - A contact or list on a task opens a menu (click, ⋯ or right-click): new email to them as To, CC or BCC (the task's title is the subject), copy the addresses, edit, or remove from the task. The task's own menu can email everyone on it
-- Settings › Email picks how messages open: Outlook (web), Gmail (web) or your default mail app. It starts unset
+- Settings › Email picks how messages open: Outlook (web), Gmail (web) or your default mail app. It starts unset. The chosen app's To, CC and BCC links can be edited there (with `{addresses}`, `{subject}` and `{mailto}`), and reset to their defaults
 
 ## Network use
 

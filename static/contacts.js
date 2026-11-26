@@ -27,47 +27,56 @@ const validEmail = s => /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(s);
 const contactText = n => (n.contacts || []).map(ctItem).filter(Boolean).map(it => `${ctLabel(it)} ${ctEmails(it).join(" ")}`).join(" ");
 
 // ---------- sending email ----------
-// Settings › Email with picks the app. Nothing is chosen until you pick one.
+// Settings › Email picks the app (nothing until you pick one). Each app has
+// a link for To, CC and BCC, which you can edit there; your edits are kept in
+// settings.emailLinks[app][kind]. In a link:
+//   {addresses}  the addresses, comma separated
+//   {subject}    the subject (the task's title)
+//   {mailto}     a whole mailto: address with them in the right field,
+//                encoded to sit inside another link
+const OUTLOOK = "https://outlook.cloud.microsoft/mail/deeplink/compose";
+const GMAIL = "https://mail.google.com/mail/?view=cm&fs=1";
 const EMAIL_APPS = [
   { id: "", name: "Not set" },
-  { id: "outlook", name: "Outlook (web)" },
-  { id: "gmail", name: "Gmail (web)" },
-  { id: "mailto", name: "Default mail app" },
+  { id: "outlook", name: "Outlook (web)", links: {
+    // the compose deeplink only reads "to"; CC and BCC ride in a mailto: address
+    to: `${OUTLOOK}?to={addresses}&subject={subject}`,
+    cc: `${OUTLOOK}?mailtouri={mailto}`,
+    bcc: `${OUTLOOK}?mailtouri={mailto}` } },
+  { id: "gmail", name: "Gmail (web)", links: {
+    to: `${GMAIL}&to={addresses}&su={subject}`,
+    cc: `${GMAIL}&cc={addresses}&su={subject}`,
+    bcc: `${GMAIL}&bcc={addresses}&su={subject}` } },
+  { id: "mailto", name: "Default mail app", links: {
+    to: "mailto:{addresses}?subject={subject}",
+    cc: "mailto:?cc={addresses}&subject={subject}",
+    bcc: "mailto:?bcc={addresses}&subject={subject}" } },
 ];
-function composeUrl({ to = [], cc = [], bcc = [], subject = "", body = "" }) {
+const emailApp = () => EMAIL_APPS.find(a => a.id && a.id === settings.emailApp) || null;
+const emailLink = (app, kind) => settings.emailLinks?.[app.id]?.[kind] || app.links[kind];
+// as: "to", "cc" or "bcc"
+function composeUrl(emails, as = "to", subject = "") {
+  const app = emailApp(); if (!app) return null;
   // keep @ and , readable; everything else encoded
   const enc = s => encodeURIComponent(s).replace(/%40/g, "@").replace(/%2C/g, ",");
-  const qs = pairs => pairs.filter(([, v]) => v).map(([k, v]) => `${k}=${enc(v)}`).join("&");
-  const j = a => a.join(",");
-  const mailto = () => {
-    const q = qs([["cc", j(cc)], ["bcc", j(bcc)], ["subject", subject], ["body", body]]);
-    return `mailto:${to.map(enc).join(",")}${q ? "?" + q : ""}`;
-  };
-  switch (settings.emailApp) {
-    case "outlook":
-      // the compose deeplink only takes "to"; CC and BCC go through the
-      // mailto: address Outlook on the web reads when it handles mailto links
-      if (!cc.length && !bcc.length) return "https://outlook.cloud.microsoft/mail/deeplink/compose?" + qs([["to", j(to)], ["subject", subject], ["body", body]]);
-      return "https://outlook.cloud.microsoft/mail/deeplink/compose?mailtouri=" + encodeURIComponent(mailto());
-    case "gmail":
-      return "https://mail.google.com/mail/?" + qs([["view", "cm"], ["fs", "1"], ["to", j(to)], ["cc", j(cc)], ["bcc", j(bcc)], ["su", subject], ["body", body]]);
-    case "mailto": return mailto();
-  }
-  return null;
+  const addresses = emails.map(enc).join(",");
+  const mailto = as === "to" ? `mailto:${addresses}?subject=${enc(subject)}` : `mailto:?${as}=${addresses}&subject=${enc(subject)}`;
+  return emailLink(app, as).replace(/\{(addresses|subject|mailto)\}/g, (m, k) =>
+    k === "addresses" ? addresses : k === "subject" ? enc(subject) : encodeURIComponent(mailto));
 }
 // as: "to", "cc" or "bcc"
 function emailTo(emails, as = "to", subject = "") {
   if (!emails.length) { toast("No email address there yet."); return; }
-  const url = composeUrl({ [as]: emails, subject });
+  const url = composeUrl(emails, as, subject);
   if (!url) {
     const t = toast(`Choose how to send email in Settings first. <button>Settings</button>`, 8000);
     $("button", t).onclick = () => { t.classList.remove("show"); openSettings(); };
     return;
   }
-  if (url.startsWith("mailto:")) location.href = url;
+  if (/^mailto:/i.test(url)) location.href = url;
   else window.open(url, "_blank", "noopener,noreferrer");
   // a web app may leave CC or BCC empty: have the addresses ready to paste
-  if (as !== "to" && settings.emailApp !== "mailto")
+  if (as !== "to" && !/^mailto:/i.test(url))
     copyText(emails.join(", ")).then(() => toast(`Also copied ${emails.length === 1 ? "the address" : `the ${emails.length} addresses`} — paste ${emails.length === 1 ? "it" : "them"} into ${as.toUpperCase()} if the field is empty.`, 8000));
 }
 

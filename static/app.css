@@ -1020,3 +1020,14 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .ct-tasks { font-size: calc(11px * var(--ui-scale)); color: var(--faint); background: var(--chip); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 .ct-row .ct-more { position: static; width: 26px; height: 26px; opacity: 0; border-radius: 7px; }
 .ct-row:hover .ct-more { opacity: 1; }
+
+/* Settings › Email: the chosen app's links */
+.email-links { display: flex; flex-direction: column; gap: 6px; }
+.email-links:empty { display: none; }
+.modal .email-links label.el { flex-direction: row; align-items: center; gap: 10px; }
+.email-links .el-k { width: 32px; flex-shrink: 0; }
+.email-links .el input { flex: 1; min-width: 0; font-family: var(--mono, ui-monospace, Menlo, monospace); font-size: calc(12px * var(--ui-scale)); }
+.email-links .el input.edited { border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); }
+.email-links .el-foot { display: flex; align-items: center; gap: 10px; }
+.email-links .el-foot .hint { flex: 1; }
+.email-links code { font-size: 0.92em; }

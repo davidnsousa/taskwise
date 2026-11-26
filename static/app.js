@@ -2455,6 +2455,7 @@ async function openSettings() {
     <div class="section-f"><span class="lbl">Email</span>
       <div class="row"><label class="f" style="flex:1">Email with<select id="sEmail">${EMAIL_APPS.map(a => `<option value="${a.id}">${a.name}</option>`).join("")}</select></label></div>
       <div class="muted">Used by <b>New email</b> on contacts and lists: it opens a new message to them in this app.</div>
+      <div class="email-links" id="sEmailLinks"></div>
     </div>
     <div class="section-f"><span class="lbl">Data folder</span>
       <div class="muted">Everything is saved as <code>${esc(cfg.board_file || "")}</code> (with a <code>.bak</code> of the previous save next to it).</div>
@@ -2469,7 +2470,40 @@ async function openSettings() {
   $("#sScale", o).value = settings.scale || 1;
   $("#sTheme", o).onchange = e => setTheme(e.target.value);
   $("#sEmail", o).value = settings.emailApp || "";
-  $("#sEmail", o).onchange = e => { settings.emailApp = e.target.value; saveSettings(); };
+  // the chosen app's To, CC and BCC links, editable; an edit equal to the
+  // default is not kept, so later fixes to the defaults still reach you
+  const setEmailLinks = (appId, links) => {
+    const all = { ...(settings.emailLinks || {}) };
+    if (links && Object.keys(links).length) all[appId] = links;
+    else all[appId] = undefined;
+    const kept = Object.fromEntries(Object.entries(all).filter(([, v]) => v));
+    settings.emailLinks = Object.keys(kept).length ? kept : undefined;
+    saveSettings();
+  };
+  const renderEmailLinks = () => {
+    const app = emailApp(), box = $("#sEmailLinks", o);
+    if (!app) { box.innerHTML = ""; return; }
+    const edited = settings.emailLinks?.[app.id] || {};
+    box.innerHTML = ["to", "cc", "bcc"].map(k => `<label class="f el"><span class="el-k">${k === "to" ? "To" : k.toUpperCase()}</span>
+        <input type="text" data-el="${k}" spellcheck="false" class="${edited[k] ? "edited" : ""}"></label>`).join("")
+      + `<div class="el-foot"><span class="hint">In a link: <code>{addresses}</code> <code>{subject}</code> <code>{mailto}</code> (a whole mailto: address, for apps that take one)</span>
+        <button class="ghost" id="sElReset" ${Object.keys(edited).length ? "" : "disabled"}>Reset to default</button></div>`;
+    $$("[data-el]", box).forEach(i => { i.value = emailLink(app, i.dataset.el); });
+  };
+  renderEmailLinks();
+  $("#sEmail", o).onchange = e => { settings.emailApp = e.target.value; saveSettings(); renderEmailLinks(); };
+  $("#sEmailLinks", o).addEventListener("input", e => {
+    const k = e.target.dataset.el, app = emailApp(); if (!k || !app) return;
+    const v = e.target.value.trim();
+    const mine = Object.fromEntries(Object.entries(settings.emailLinks?.[app.id] || {}).filter(([kk]) => kk !== k));
+    if (v && v !== app.links[k]) mine[k] = v;
+    setEmailLinks(app.id, mine);
+    e.target.classList.toggle("edited", !!mine[k]);
+    $("#sElReset", o).disabled = !Object.keys(mine).length;
+  });
+  $("#sEmailLinks", o).addEventListener("click", e => {
+    if (e.target.closest("#sElReset")) { setEmailLinks(emailApp().id, null); renderEmailLinks(); }
+  });
   $("#sScale", o).oninput = e => { settings.scale = +e.target.value; applyLook(); saveSettings(); };
   $("#sColMin", o).value = settings.colMin || 280;
   $("#sColMin", o).oninput = e => { settings.colMin = +e.target.value; applyLook(); saveSettings(); };

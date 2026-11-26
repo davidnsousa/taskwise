@@ -1011,9 +1011,6 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .att { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .card .meta:empty + .att { margin-top: 10px; }
 .card.is-done .att { opacity: 0.55; }
-.att-more { height: 20px; padding: 0 8px; border-radius: 6px; font-size: calc(11px * var(--ui-scale)); font-weight: 600; color: var(--muted);
-  background: none; border: 1px dashed var(--border-strong); box-shadow: none; }
-.att-more:hover { color: var(--text); border-style: solid; background: var(--hover); }
 .ct-wrap .ct-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ct-more { width: 18px; height: 20px; padding: 0; border: none; background: none; box-shadow: none; color: var(--faint); opacity: 0; border-radius: 0 6px 6px 0; }
 .ct-wrap:hover .ct-more { opacity: 1; }

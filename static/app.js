@@ -636,22 +636,12 @@ const linkChipList = n => (n.links || []).map(id => {
 const linkChips = n => linkChipList(n).join("");
 
 // what's attached to a task (web links, then files, then contacts and
-// lists) gets its own row under the tags. Past ATT_MAX the rest fold into
-// a +N chip; clicking it shows them all on that card until the page reloads.
-const ATT_MAX = 4, attOpen = new Set();
+// lists) gets its own row under the tags, all of it shown
 function attachRow(n) {
   const links = linkChipList(n);
   const all = [...links.filter(h => h.includes("lnk-wrap web")), ...links.filter(h => h.includes("lnk-wrap file")), ...contactChipList(n)];
-  if (!all.length) return "";
-  const cut = all.length > ATT_MAX && !attOpen.has(n.id);
-  const shown = cut ? all.slice(0, ATT_MAX - 1) : all;
-  return `<div class="att">${shown.join("")}${cut ? `<button class="att-more" data-att-more="${n.id}" title="Show all ${all.length}" draggable="false">+${all.length - shown.length}</button>` : ""}</div>`;
+  return all.length ? `<div class="att">${all.join("")}</div>` : "";
 }
-document.addEventListener("click", e => {
-  const b = e.target.closest?.("[data-att-more]"); if (!b) return;
-  e.preventDefault(); e.stopPropagation();
-  attOpen.add(b.dataset.attMore); render();
-}, true);
 
 // the ⋯ on a note's link: open, edit, copy or take it off the note. Caught
 // before the board, card and preview handlers, which would open the note.

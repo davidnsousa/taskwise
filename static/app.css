@@ -386,6 +386,8 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
 .done-fold .arrow { display: inline-flex; transition: transform 0.15s; }
 .done-fold .arrow .ic { width: 12px; height: 12px; }
 .done-fold.open .arrow { transform: rotate(90deg); }
+.card .done-list { margin: 2px 0 0; padding-left: 1.3em; list-style: none; font-size: calc(12.5px * var(--ui-scale)); color: var(--muted); line-height: 1.55; }
+.card.is-done .done-list { opacity: 0.55; }
 .card .meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; align-items: center; }
 .card .meta:empty { display: none; }
 .check {

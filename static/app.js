@@ -736,12 +736,36 @@ document.addEventListener("contextmenu", e => {
 // line, so a long-running task shows what is still open. Only the card
 // hides them: the text, the 2/5 chip and the bar still count every one.
 const doneOpen = new Set();   // tasks whose ticked subtasks are unfolded (until reload)
+// the ticked subtasks the card folds away: ticked, and with no open one
+// under them (those stay in place), outside code blocks
+function foldedTicks(src) {
+  const lines = String(src || "").split("\n"), out = [];
+  const box = l => l.match(/^(\s*(?:>\s?)*)(\s*)[-*+]\s+\[([ xX])\](?:\s+(.*))?$/);
+  const ind = m => (m[1] + m[2]).replace(/\t/g, "    ").length;
+  let code = false;
+  lines.forEach((l, i) => {
+    if (/^\s*```/.test(l)) { code = !code; return; }
+    const m = !code && box(l); if (!m || m[3] === " ") return;
+    for (let j = i + 1; j < lines.length; j++) {
+      const k = box(lines[j]);
+      if (!lines[j].trim()) continue;
+      if (!k || ind(k) <= ind(m)) break;
+      if (k[3] === " ") return;
+    }
+    out.push({ line: i, text: m[4] || "" });
+  });
+  return out;
+}
+// Unfolded, they show under the "N done" line (where the click was), each
+// still a box that can be unticked.
 function cardBody(n) {
   if (!(n.body || "").trim()) return "";
-  const done = MD.taskCount(n.body).done, open = doneOpen.has(n.id);
-  return `<div class="body md ${done && !open ? "fold-done" : ""}">${MD.render(n.body, { tasks: true })}</div>`
-    + (done ? `<button class="done-fold ${open ? "open" : ""}" data-done-fold="${n.id}" draggable="false"
-        title="${open ? "Hide the ticked subtasks" : "Show the ticked subtasks"}">${ICON.check}${done} done<span class="arrow">${ICON.chevron}</span></button>` : "");
+  const ticks = foldedTicks(n.body), open = doneOpen.has(n.id);
+  return `<div class="body md ${ticks.length ? "fold-done" : ""}">${MD.render(n.body, { tasks: true })}</div>`
+    + (ticks.length ? `<button class="done-fold ${open ? "open" : ""}" data-done-fold="${n.id}" draggable="false"
+        title="${open ? "Hide the ticked subtasks" : "Show the ticked subtasks"}">${ICON.check}${ticks.length} done<span class="arrow">${ICON.chevron}</span></button>` : "")
+    + (ticks.length && open ? `<ul class="md done-list">${ticks.map(t =>
+        `<li class="task checked"><input type="checkbox" class="md-task" data-line="${t.line}" checked><span>${MD.inline(t.text)}</span></li>`).join("")}</ul>` : "");
 }
 document.addEventListener("click", e => {
   const b = e.target.closest?.("[data-done-fold]"); if (!b) return;

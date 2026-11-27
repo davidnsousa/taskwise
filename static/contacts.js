@@ -179,7 +179,8 @@ function editContact(id, { after, name = "", email = "" } = {}) {
       <div class="cf-list" id="cFields"></div>
       <datalist id="cFieldNames">${fieldNames().map(k => `<option value="${esc(k)}">`).join("")}</datalist>
       <div><button class="ghost cf-add" id="cAddField">${ICON.plusSm} field</button></div></div>
-    ${lists.length ? `<div class="section-f"><span class="lbl">Lists</span><div class="tog-chips">${lists.map(l =>
+    ${c ? "" : pasteHtml("cb", "Or add several at once")}
+    ${lists.length ? `<div class="section-f"><span class="lbl">Lists${c ? "" : ` <span class="opt">· for everyone you add</span>`}</span><div class="tog-chips">${lists.map(l =>
       `<label class="tog"><input type="checkbox" data-l="${l.id}" ${c && (l.members || []).includes(c.id) ? "checked" : ""}><span>${ICON.users}${esc(l.name)}</span></label>`).join("")}</div></div>` : ""}
     <div id="cErr" class="due-preview bad"></div>
     <div class="foot"><div class="spacer"></div><button id="cCancel">Cancel</button><button class="primary" id="cOk">${c ? "Save" : "Add contact"}</button></div>`, "wide");
@@ -200,7 +201,34 @@ function editContact(id, { after, name = "", email = "" } = {}) {
   $("#cAddField", o).onclick = () => $(".cf-k", fieldRow()).focus();
   $("#cFields", o).addEventListener("click", e => { const x = e.target.closest(".cf-x"); if (x) x.closest(".cf-row").remove(); });
   $(c || !name ? "#cName" : "#cEmail", o).focus();
+  // a new contact can also take pasted rows: the button says how many
+  const countOk = () => {
+    const k = pastedRows().length + ($("#cEmail", o).value.trim() ? 1 : 0);
+    $("#cOk", o).textContent = k > 1 ? `Add ${k} contacts` : "Add contact";
+  };
+  const pastedRows = c ? () => [] : pasteBox(o, "cb", countOk);
+  if (!c) $("#cEmail", o).addEventListener("input", countOk);
+  const okMany = () => {
+    const rows = pastedRows();
+    if (!rows.length) return false;
+    // the single form too, when it was filled in
+    const em = $("#cEmail", o).value.trim();
+    if (em && !validEmail(em)) { $("#cErr", o).textContent = "The email above doesn't look like an address — clear it to add only the pasted ones."; return true; }
+    if (em) rows.unshift({ name: $("#cName", o).value.trim(), email: em, note: $("#cNote", o).value.trim() || undefined });
+    const fresh = rows.filter(r => !byEmail(r.email)).length;
+    const added = rows.map(upsertPasted);
+    for (const b of $$("[data-l]", o)) {
+      const l = contactListById(b.dataset.l); if (!l || !b.checked) continue;
+      l.members ||= [];
+      for (const x of added) if (!l.members.includes(x.id)) l.members.push(x.id);
+    }
+    save(); closeModal(); render();
+    toast(`Added ${added.length} contact${added.length === 1 ? "" : "s"}${fresh < added.length ? ` (${added.length - fresh} ${added.length - fresh === 1 ? "was" : "were"} already in your contacts)` : ""}.`);
+    for (const x of added) after?.(x);
+    return true;
+  };
   const ok = () => {
+    if (!c && okMany()) return;
     const nm = $("#cName", o).value.trim(), em = $("#cEmail", o).value.trim(), nt = $("#cNote", o).value.trim();
     if (!validEmail(em)) { $("#cErr", o).textContent = em ? "That doesn't look like an email address." : "An email address is needed."; return; }
     const dup = ws.contacts.find(x => x !== c && x.email.toLowerCase() === em.toLowerCase());
@@ -226,7 +254,7 @@ function editContact(id, { after, name = "", email = "" } = {}) {
   };
   $("#cOk", o).onclick = ok;
   $("#cCancel", o).onclick = closeModal;
-  o.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("input[type=text]")) ok(); });
+  o.addEventListener("keydown", e => { if (e.key === "Enter" && e.target.matches("input[type=text]:not(.cf-k):not(.cf-v)")) ok(); });
 }
 // ---------- pasting contacts from a spreadsheet ----------
 // Reads rows copied from a spreadsheet (tabs), a CSV (commas or semicolons,
@@ -364,6 +392,53 @@ const memCard = (attr, checked, name, email, extra = "", tip = "") =>
   + `<span class="av">${esc(initials(name && name !== "(no name)" ? name : email))}</span><span class="av-check">${ICON.check}</span>`
   + `<span class="mem-t"><span class="mem-n">${esc(name)}</span><span class="mem-e">${esc(email)}</span></span>${extra}</label>`;
 
+// ---------- the paste box (New contact and the list editor) ----------
+const byEmail = em => ws.contacts.find(c => c.email.toLowerCase() === em.toLowerCase());
+const pasteHtml = (id, label) => `<div class="section-f"><span class="lbl">${label}</span>
+      <textarea id="${id}Paste" class="paste-zone" rows="2" spellcheck="false" placeholder="Paste rows copied from a spreadsheet, a CSV or an email’s To line"></textarea>
+      <div class="hint">Tabs, commas or semicolons are detected. With a header row, the name and email columns are found and the other columns become fields.</div>
+      <div class="imp" id="${id}Imp" hidden></div></div>`;
+// wires a paste box; returns a function giving the ticked pasted rows
+function pasteBox(o, id, onChange) {
+  let pasted = [];
+  const ta = $(`#${id}Paste`, o), box = $(`#${id}Imp`, o);
+  const USE = { email: "email", name: "name", note: "note", field: "new field", "": "not used" };
+  const renderImport = () => {
+    const p = parseContacts(ta.value);
+    pasted = p.rows;
+    box.hidden = !ta.value.trim();
+    const fresh = pasted.filter(r => !byEmail(r.email)).length;
+    const skip = p.skipped ? ` · ${p.skipped} row${p.skipped === 1 ? "" : "s"} without an email skipped` : "";
+    box.innerHTML = `<div class="imp-sum">${pasted.length
+        ? `<b>${pasted.length}</b> contact${pasted.length === 1 ? "" : "s"} found (${fresh} new, ${pasted.length - fresh} already in your contacts) · separated by ${p.sep}${skip}`
+        : `No email addresses found${skip}.`}</div>`
+      + (p.columns && pasted.length ? `<div class="imp-cols">${p.columns.map(c =>
+          `<span class="imp-col ${c.use || "none"}" title="${esc(c.use === "field" ? `kept on each contact as “${c.label}”` : USE[c.use])}"><b>${esc(c.label)}</b>${USE[c.use]}</span>`).join("")}</div>` : "")
+      + (pasted.length ? `<div class="mem-grid imp-rows">${pasted.map((r, i) => {
+        const had = byEmail(r.email);
+        const tip = Object.entries({ ...(r.note ? { Note: r.note } : {}), ...(r.fields || {}) }).map(([k, v]) => `${k}: ${v}`).join("\n");
+        return memCard(`data-imp="${i}"`, true, r.name || had?.name || "(no name)", r.email,
+          `<span class="imp-tag ${had ? "" : "new"}">${had ? "existing" : "new"}</span>`, tip);
+      }).join("")}</div>` : "");
+  };
+  ta.addEventListener("input", () => { renderImport(); onChange?.(); });
+  box.addEventListener("change", () => onChange?.());
+  return () => $$("[data-imp]", box).filter(b => b.checked).map(b => pasted[+b.dataset.imp]).filter(Boolean);
+}
+// a pasted row as a contact: the same address reuses the contact (filling
+// in a name, note and fields it lacks); otherwise a new one
+function upsertPasted(r) {
+  let c = byEmail(r.email);
+  if (!c) { c = { id: uid(), name: r.name, email: r.email }; ws.contacts.push(c); }
+  else if (!c.name && r.name) c.name = r.name;
+  if (r.note && !c.note) c.note = r.note;
+  for (const [k, v] of Object.entries(r.fields || {})) {
+    c.fields ||= {};
+    if (!c.fields[k]) c.fields[k] = v;
+  }
+  return c;
+}
+
 function editContactList(id, { after } = {}) {
   const l = id ? contactListById(id) : null;
   // the list's members first, then everyone else, each by name
@@ -379,10 +454,7 @@ function editContactList(id, { after } = {}) {
         memCard(`data-c="${c.id}"`, l && (l.members || []).includes(c.id), ctName(c), c.email)).join("")}</div>`
         : `<div class="mem-empty">No contacts yet — paste them below.</div>`}
     </div>
-    <div class="section-f"><span class="lbl">Add from a spreadsheet</span>
-      <textarea id="clPaste" class="paste-zone" rows="2" spellcheck="false" placeholder="Paste rows copied from a spreadsheet, a CSV or an email’s To line"></textarea>
-      <div class="hint">Tabs, commas or semicolons are detected, and a header row’s name and email columns are used.</div>
-      <div class="imp" id="clImp" hidden></div></div>
+    ${pasteHtml("cl", "Add from a spreadsheet")}
     <div id="clErr" class="due-preview bad"></div>
     <div class="foot"><div class="spacer"></div><button id="clCancel">Cancel</button><button class="primary" id="clOk">${l ? "Save" : "Add list"}</button></div>`, "wide");
   $("#clName", o).value = l?.name || "";
@@ -402,47 +474,16 @@ function editContactList(id, { after } = {}) {
   $("#clAll", o)?.addEventListener("click", () => setShown(true));
   $("#clNone", o)?.addEventListener("click", () => setShown(false));
   // pasted contacts: previewed as they will be added, each can be unticked
-  let pasted = [];
-  const byEmail = em => ws.contacts.find(c => c.email.toLowerCase() === em.toLowerCase());
-  const renderImport = () => {
-    const box = $("#clImp", o), p = parseContacts($("#clPaste", o).value);
-    pasted = p.rows;
-    box.hidden = !$("#clPaste", o).value.trim();
-    const fresh = pasted.filter(r => !byEmail(r.email)).length;
-    const skip = p.skipped ? ` · ${p.skipped} row${p.skipped === 1 ? "" : "s"} without an email skipped` : "";
-    const USE = { email: "email", name: "name", note: "note", field: "new field", "": "not used" };
-    box.innerHTML = `<div class="imp-sum">${pasted.length
-        ? `<b>${pasted.length}</b> contact${pasted.length === 1 ? "" : "s"} found (${fresh} new, ${pasted.length - fresh} already in your contacts) · separated by ${p.sep}${skip}`
-        : `No email addresses found${skip}.`}</div>`
-      + (p.columns && pasted.length ? `<div class="imp-cols">${p.columns.map(c =>
-          `<span class="imp-col ${c.use || "none"}" title="${esc(c.use === "field" ? `kept on each contact as “${c.label}”` : USE[c.use])}"><b>${esc(c.label)}</b>${USE[c.use]}</span>`).join("")}</div>` : "")
-      + (pasted.length ? `<div class="mem-grid imp-rows">${pasted.map((r, i) => {
-        const had = byEmail(r.email);
-        const tip = Object.entries({ ...(r.note ? { Note: r.note } : {}), ...(r.fields || {}) }).map(([k, v]) => `${k}: ${v}`).join("\n");
-        return memCard(`data-imp="${i}"`, true, r.name || had?.name || "(no name)", r.email,
-          `<span class="imp-tag ${had ? "" : "new"}">${had ? "existing" : "new"}</span>`, tip);
-      }).join("")}</div>` : "");
-  };
-  $("#clPaste", o).addEventListener("input", renderImport);
+  const pastedRows = pasteBox(o, "cl");
   const ok = () => {
     const nm = $("#clName", o).value.trim();
     if (!nm) { $("#clErr", o).textContent = "Give the list a name."; return; }
     const x = l || { id: uid() };
     x.name = nm;
     x.members = $$("[data-c]", o).filter(b => b.checked).map(b => b.dataset.c);
-    // the ticked pasted contacts: the same address reuses the contact (and
-    // gives it a name if it had none); others become new contacts
-    for (const b of $$("[data-imp]", o)) {
-      const r = pasted[+b.dataset.imp]; if (!b.checked || !r) continue;
-      let c = byEmail(r.email);
-      if (!c) { c = { id: uid(), name: r.name, email: r.email }; ws.contacts.push(c); }
-      else if (!c.name && r.name) c.name = r.name;
-      // a note and extra columns fill in what the contact doesn't have yet
-      if (r.note && !c.note) c.note = r.note;
-      for (const [k, v] of Object.entries(r.fields || {})) {
-        c.fields ||= {};
-        if (!c.fields[k]) c.fields[k] = v;
-      }
+    // the ticked pasted contacts join the list (existing ones reused)
+    for (const r of pastedRows()) {
+      const c = upsertPasted(r);
       if (!x.members.includes(c.id)) x.members.push(c.id);
     }
     if (!l) ws.contactLists.push(x);

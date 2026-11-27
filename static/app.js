@@ -89,6 +89,8 @@ async function loadBoard() {
   // hiding boards and groups was dropped (collapse and hibernate cover it):
   // anything hidden comes back
   for (const x of [...ws.groups, ...ws.boards]) if ("hidden" in x) { delete x.hidden; changed = true; }
+  // ticked subtasks are kept apart from the text (n.doneTicks)
+  for (const n of ws.notes) if (takeTicks(n)) changed = true;
   if (data.board.version !== 2) { ws.version = 2; changed = true; }
   const merged = mergeDuplicateBookmarks();
   if (merged) changed = true;
@@ -378,7 +380,7 @@ function matches(n, { archive = false } = {}) {
     const words = ui.q.toLowerCase().split(/\s+/).filter(Boolean);
     const linkText = (n.links || []).map(id => { const x = bookmark(id); return x ? x.b.title + " " + x.b.url : ""; }).join(" ");
     const sec = section(b, n.sectionId)?.name || "";
-    const hay = `${n.title} ${n.body} ${n.waitingFor || ""} ${tags.join(" ")} ${b?.name || ""} ${group(b?.groupId)?.name || ""} ${sec} ${linkText} ${contactText(n)}`.toLowerCase();
+    const hay = `${n.title} ${n.body} ${(n.doneTicks || []).map(t => t.md).join(" ")} ${n.waitingFor || ""} ${tags.join(" ")} ${b?.name || ""} ${group(b?.groupId)?.name || ""} ${sec} ${linkText} ${contactText(n)}`.toLowerCase();
     if (!words.every(w => hay.includes(w))) return false;
   }
   return true;
@@ -595,8 +597,56 @@ function dueBadge(n) {
 // green once all are ticked. Hidden on done notes and for a lone box.
 function taskInfo(n) {
   if (isDone(n)) return null;
-  const t = MD.taskCount(n.body);
+  const t = allTicks(n);
   return t.total >= 2 ? t : null;
+}
+// the boxes in the text and the ticked ones kept apart, together
+function allTicks(n) {
+  const t = MD.taskCount(n.body);
+  for (const k of n.doneTicks || []) { const c = MD.taskCount(k.md); t.done += c.done; t.total += c.total; }
+  return t;
+}
+// Ticked subtasks leave the text: each is kept on the task with the day it
+// was ticked, and goes back (unticked) to its list when unticked there.
+function takeTicks(n) {
+  const r = MD.extractTicks(n.body);
+  if (!r.ticks.length) return false;
+  n.body = r.body.replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "");
+  (n.doneTicks ||= []).push(...r.ticks.map(t => ({ ...t, at: nowSec() })));
+  return true;
+}
+// tick a box in the text (card or preview): counted for today, then kept apart
+function tickBox(n, line) {
+  const before = n.body;
+  n.body = MD.toggleTask(n.body, line);
+  logTick(n, before, n.body);
+  takeTicks(n);
+  n.updated = nowSec();
+}
+function untickKept(n, i) {
+  const t = n.doneTicks?.[i]; if (!t) return;
+  n.body = MD.restoreTick(n.body, t);
+  logTick(n, t.md, t.md.replace(/^(\s*[-*+]\s+)\[[xX]\]/, "$1[ ]"));
+  n.doneTicks.splice(i, 1);
+  if (!n.doneTicks.length) delete n.doneTicks;
+  n.updated = nowSec();
+}
+function dropKept(n, i) {
+  n.doneTicks?.splice(i, 1);
+  if (!n.doneTicks?.length) delete n.doneTicks;
+  n.updated = nowSec();
+}
+// the kept ones as a list, newest first: a box to untick, the text, the day
+function keptList(n, { del = false } = {}) {
+  const ks = (n.doneTicks || []).map((t, i) => ({ t, i })).reverse();
+  return `<ul class="md done-list">${ks.map(({ t, i }) => {
+    const [first, ...rest] = t.md.split("\n");
+    const more = rest.map(x => MD.plain(x.replace(/^\s*[-*+]\s+(\[[ xX]\]\s*)?/, ""))).filter(Boolean);
+    return `<li class="task checked"><input type="checkbox" class="md-task" data-untick="${i}" checked title="Untick: back into the text">`
+      + `<span>${MD.inline(first.replace(/^\s*[-*+]\s+\[[xX]\]\s*/, ""))}${more.length ? `<span class="dl-more">${esc(more.join(" · "))}</span>` : ""}</span>`
+      + `<span class="dl-at" title="${esc(new Date(t.at * 1000).toLocaleString())}">${esc(ago(t.at))}</span>`
+      + (del ? `<button class="ghost icon dl-del" data-drop-tick="${i}" title="Delete it for good">${ICON.x}</button>` : "") + `</li>`;
+  }).join("")}</ul>`;
 }
 function taskBadge(n) {
   const t = taskInfo(n); if (!t) return "";
@@ -732,43 +782,18 @@ document.addEventListener("contextmenu", e => {
   if (linkMenuFrom(el, at)) { e.preventDefault(); e.stopPropagation(); }
 }, true);
 
-// A card's text with its ticked subtasks folded away behind a "12 done"
-// line, so a long-running task shows what is still open. Only the card
-// hides them: the text, the 2/5 chip and the bar still count every one.
+// A card's text, then a "12 done" line for the ticked subtasks kept apart
+// (n.doneTicks); unfolded, they show under it, each a box to untick.
 const doneOpen = new Set();   // tasks whose ticked subtasks are unfolded (until reload)
-// the ticked subtasks the card folds away: ticked, and with no open one
-// under them (those stay in place), outside code blocks
-function foldedTicks(src) {
-  const lines = String(src || "").split("\n"), out = [];
-  const box = l => l.match(/^(\s*(?:>\s?)*)(\s*)[-*+]\s+\[([ xX])\](?:\s+(.*))?$/);
-  const ind = m => (m[1] + m[2]).replace(/\t/g, "    ").length;
-  let code = false;
-  lines.forEach((l, i) => {
-    if (/^\s*```/.test(l)) { code = !code; return; }
-    const m = !code && box(l); if (!m || m[3] === " ") return;
-    for (let j = i + 1; j < lines.length; j++) {
-      const k = box(lines[j]);
-      if (!lines[j].trim()) continue;
-      if (!k || ind(k) <= ind(m)) break;
-      if (k[3] === " ") return;
-    }
-    out.push({ line: i, text: m[4] || "" });
-  });
-  return out;
-}
-// Unfolded, they show under the "N done" line (where the click was), each
-// still a box that can be unticked.
 function cardBody(n) {
-  if (!(n.body || "").trim()) return "";
-  const ticks = foldedTicks(n.body), open = doneOpen.has(n.id);
-  return `<div class="body md ${ticks.length ? "fold-done" : ""}">${MD.render(n.body, { tasks: true })}</div>`
-    + (ticks.length ? `<button class="done-fold ${open ? "open" : ""}" data-done-fold="${n.id}" draggable="false"
-        title="${open ? "Hide the ticked subtasks" : "Show the ticked subtasks"}">${ICON.check}${ticks.length} done<span class="arrow">${ICON.chevron}</span></button>` : "")
-    + (ticks.length && open ? `<ul class="md done-list">${ticks.map(t =>
-        `<li class="task checked"><input type="checkbox" class="md-task" data-line="${t.line}" checked><span>${MD.inline(t.text)}</span></li>`).join("")}</ul>` : "");
+  const k = (n.doneTicks || []).length, open = doneOpen.has(n.id);
+  return ((n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : "")
+    + (k ? `<button class="done-fold ${open ? "open" : ""}" data-done-fold="${n.id}" draggable="false"
+        title="${open ? "Hide the ticked subtasks" : "Show the ticked subtasks"}">${ICON.check}${k} done<span class="arrow">${ICON.chevron}</span></button>` : "")
+    + (k && open ? keptList(n) : "");
 }
 document.addEventListener("click", e => {
-  const b = e.target.closest?.("[data-done-fold]"); if (!b) return;
+  const b = e.target.closest?.("[data-done-fold]"); if (!b || b.closest(".overlay")) return;
   e.preventDefault(); e.stopPropagation();
   const id = b.dataset.doneFold;
   doneOpen.has(id) ? doneOpen.delete(id) : doneOpen.add(id);
@@ -1901,10 +1926,8 @@ document.addEventListener("click", e => {
   if (!box || box.closest(".overlay")) return;
   e.preventDefault(); e.stopPropagation();
   const n = note(box.closest("[data-note]")?.dataset.note); if (!n) return;
-  const before = n.body;
-  n.body = MD.toggleTask(n.body, +box.dataset.line);
-  logTick(n, before, n.body);
-  n.updated = nowSec();
+  if (box.dataset.untick != null) untickKept(n, +box.dataset.untick);
+  else tickBox(n, +box.dataset.line);
   save(); render();
 }, true);
 
@@ -1996,6 +2019,7 @@ function openNote(n, { panel = null, fresh = false } = {}) {
       <button class="ne-preview-head" id="nPreviewHead" title="Show or hide the preview"><span class="arrow">${ICON.chevron}</span>Preview</button>
       <div class="ne-view md" id="nView"></div>
     </div>
+    <div class="ne-kept" id="nKept"></div>
     <div class="nv-meta ne-meta" id="nMeta"></div>
     <div class="ne-panel" data-panel="tags" hidden><div class="tag-pick" id="nTags"></div></div>
     <div class="ne-panel" data-panel="waiting" hidden>
@@ -2109,17 +2133,35 @@ function openNote(n, { panel = null, fresh = false } = {}) {
     $("#nPreview", o).classList.toggle("closed", settings.previewClosed);
     saveSettings();
   };
+  // the ticked subtasks kept apart, folded under the preview
+  const kept = $("#nKept", o);
+  const renderKept = () => {
+    const k = (n.doneTicks || []).length, open = doneOpen.has(n.id);
+    kept.hidden = !k;
+    kept.innerHTML = k ? `<button class="done-fold ${open ? "open" : ""}" data-done-fold="${n.id}" title="${open ? "Hide" : "Show"} the ticked subtasks">${ICON.check}${k} done<span class="arrow">${ICON.chevron}</span></button>${open ? keptList(n, { del: true }) : ""}` : "";
+  };
+  renderKept();
+  const resync = () => {
+    const at = Math.min(src.selectionStart, src.value.length);
+    src.value = noteSource(n);
+    src.setSelectionRange(at, at); fit();
+    touch(); renderView(); renderKept();
+  };
   view.addEventListener("click", e => {
     const box = e.target.closest("input.md-task"); if (!box) return;
     e.preventDefault();
-    const before = n.body;
-    n.body = MD.toggleTask(n.body, +box.dataset.line);
-    logTick(n, before, n.body);
-    const at = src.selectionStart;
-    src.value = noteSource(n);
-    src.setSelectionRange(at, at);
-    touch(); renderView();
+    tickBox(n, +box.dataset.line);
+    resync();
   });
+  kept.addEventListener("click", e => {
+    const fold = e.target.closest("[data-done-fold]"), box = e.target.closest("[data-untick]"), del = e.target.closest("[data-drop-tick]");
+    if (!fold && !box && !del) return;
+    e.preventDefault(); e.stopPropagation();
+    if (fold) { doneOpen.has(n.id) ? doneOpen.delete(n.id) : doneOpen.add(n.id); renderKept(); return; }
+    if (box) untickKept(n, +box.dataset.untick);
+    else dropKept(n, +del.dataset.dropTick);
+    resync();
+  }, true);
   $("#nBoard", o).onchange = e => {
     n.boardId = e.target.value;
     n.sectionId = null;
@@ -2316,6 +2358,7 @@ function openNote(n, { panel = null, fresh = false } = {}) {
   const isEmpty = () => !n.title.trim() && !(n.body || "").trim() && !(n.tags || []).length && !n.due && !(n.links || []).length && !(n.deps || []).length;
   o._close = () => {
     closeModal();
+    if (takeTicks(n)) { n.updated = nowSec(); save(); }
     if (fresh && isEmpty() && ws.notes.includes(n)) { ws.notes = ws.notes.filter(x => x !== n); save(); }
     render();
   };

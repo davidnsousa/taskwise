@@ -375,10 +375,7 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
 .card .body:not(:has(> :nth-child(6))) { -webkit-mask-image: none; mask-image: none; }
 /* on boards a card shows its whole text */
 .column .card .body { max-height: none; -webkit-mask-image: none; mask-image: none; }
-/* ticked subtasks folded away (a ticked one that still has open ones under it stays) */
-.card .body.fold-done li.task.checked:not(:has(li.task:not(.checked))) { display: none; }
-/* a list left with nothing to show takes no room */
-.card .body.fold-done ul:not(:has(> li:not(.task.checked))):not(:has(li.task:not(.checked))) { display: none; }
+/* the ticked subtasks kept apart from the text, under "N done" */
 .done-fold, :where(.done-fold) { display: inline-flex; align-items: center; gap: 5px; height: 22px; margin-top: 4px; padding: 0 8px 0 6px; border: none; border-radius: 6px;
   background: none; box-shadow: none; color: var(--faint); font-size: calc(11.5px * var(--ui-scale)); font-weight: 500; cursor: pointer; }
 .done-fold:hover { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
@@ -388,6 +385,16 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
 .done-fold.open .arrow { transform: rotate(90deg); }
 .card .done-list { margin: 2px 0 0; padding-left: 1.3em; list-style: none; font-size: calc(12.5px * var(--ui-scale)); color: var(--muted); line-height: 1.55; }
 .card.is-done .done-list { opacity: 0.55; }
+.md.done-list li.task { display: flex; align-items: baseline; gap: 0; }
+.done-list li.task > span:first-of-type { flex: 1; min-width: 0; color: var(--faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--faint) 60%, transparent); }
+.done-list .dl-more { display: block; font-size: 0.9em; }
+.done-list .dl-at { flex-shrink: 0; margin-left: 10px; color: var(--faint); font-size: calc(11px * var(--ui-scale)); white-space: nowrap; }
+.done-list .dl-del { width: 22px; height: 22px; margin-left: 4px; align-self: center; opacity: 0; }
+.done-list li:hover .dl-del { opacity: 1; }
+.done-list .dl-del .ic { width: 12px; height: 12px; }
+.ne-kept { margin-top: 6px; }
+.ne-kept[hidden] { display: none; }
+.ne-kept .done-list { margin: 2px 0 0; padding-left: 1.3em; list-style: none; font-size: calc(13px * var(--ui-scale)); line-height: 1.6; }
 .card .meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; align-items: center; }
 .card .meta:empty { display: none; }
 .check {

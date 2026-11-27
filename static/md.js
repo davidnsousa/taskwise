@@ -99,6 +99,80 @@ const MD = (() => {
     return lines.join("\n");
   }
 
+  // ---- ticked subtasks leave the text ----
+  // A ticked "- [x]" line (with the lines under it) is taken out of the text
+  // and kept apart: { md, head, parent }. md is the lines, unindented; head
+  // the heading it was under; parent the item it was nested in. A ticked
+  // one with open boxes under it stays, as do quoted ones and code.
+  const ITEM = /^(\s*)[-*+]\s+\[([ xX])\](?:\s+(.*))?$/;
+  const indOf = l => (l.match(/^\s*/)[0]).replace(/\t/g, "    ").length;
+  const blockEnd = (lines, i) => { const d = indOf(lines[i]); let e = i + 1; while (e < lines.length && lines[e].trim() && indOf(lines[e]) > d) e++; return e; };
+  const itemText = l => (l.match(/^\s*[-*+]\s+(?:\[[ xX]\]\s*)?(.*)$/) || [, ""])[1].trim();
+  function extractTicks(src) {
+    const lines = String(src || "").split("\n"), ticks = [];
+    let code = false, head = "";
+    for (let i = 0; i < lines.length; ) {
+      const l = lines[i];
+      if (/^\s*```/.test(l)) { code = !code; i++; continue; }
+      if (code) { i++; continue; }
+      const h = l.match(/^#{1,6}\s+(.*?)\s*#*\s*$/);
+      if (h) { head = h[1]; i++; continue; }
+      const m = l.match(ITEM);
+      if (!m || m[2] === " ") { i++; continue; }
+      const e = blockEnd(lines, i), block = lines.slice(i, e);
+      if (block.slice(1).some(x => /^\s*[-*+]\s+\[ \]/.test(x))) { i++; continue; }
+      // the item it is nested in: the nearest line above with less indent
+      let parent = "";
+      const d = indOf(l);
+      if (d > 0) for (let j = i - 1; j >= 0 && lines[j].trim(); j--) {
+        if (indOf(lines[j]) < d) { parent = /^\s*[-*+]\s/.test(lines[j]) ? itemText(lines[j]) : ""; break; }
+      }
+      const cut = Math.min(...block.filter(x => x.trim()).map(indOf));
+      ticks.push({ md: block.map(x => x.slice(Math.min(cut, indOf(x)))).join("\n"), head, parent });
+      lines.splice(i, e - i);
+    }
+    return { body: lines.join("\n"), ticks };
+  }
+  // put a kept one back, unticked: as the last child of its parent item,
+  // else at the end of the first list under its heading, else at the end
+  function restoreTick(src, t) {
+    const lines = String(src || "").split("\n");
+    const md = t.md.split("\n");
+    md[0] = md[0].replace(/^(\s*[-*+]\s+)\[[xX]\]/, "$1[ ]");
+    const put = (at, ind) => { lines.splice(at, 0, ...md.map(x => " ".repeat(ind) + x)); return lines.join("\n"); };
+    let code = false, inHead = !t.head;
+    const isList = l => /^\s*[-*+]\s/.test(l);
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^\s*```/.test(l)) { code = !code; continue; }
+      if (code) continue;
+      if (t.parent && isList(l) && itemText(l) === t.parent) return put(blockEnd(lines, i), indOf(l) + 2);
+    }
+    code = false;
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^\s*```/.test(l)) { code = !code; continue; }
+      if (code) continue;
+      const h = l.match(/^#{1,6}\s+(.*?)\s*#*\s*$/);
+      if (h) {
+        if (inHead && t.head) return put(i, 0);          // its section had no list
+        inHead = h[1] === t.head;
+        if (inHead && t.head) {
+          let j = i + 1; while (j < lines.length && !lines[j].trim()) j++;
+          if (j >= lines.length || !isList(lines[j])) return put(i + 1, 0);
+        }
+        continue;
+      }
+      if (inHead && isList(l) && indOf(l) === 0) {
+        let e = i; while (e < lines.length && lines[e].trim() && (indOf(lines[e]) > 0 || isList(lines[e]))) e++;
+        return put(e, 0);
+      }
+    }
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    if (lines.length && !isList(lines[lines.length - 1])) lines.push("");
+    return put(lines.length, 0);
+  }
+
   // how many "- [ ]" boxes the text has and how many are ticked (code blocks
   // skipped, quoted and nested boxes counted, as render shows them)
   function taskCount(src) {
@@ -119,5 +193,5 @@ const MD = (() => {
     .replace(/(\*\*|__|~~|`)/g, "")
     .trim();
 
-  return { render, toggleTask, taskCount, plain, inline };
+  return { render, toggleTask, taskCount, plain, inline, extractTicks, restoreTick };
 })();

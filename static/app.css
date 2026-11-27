@@ -1075,8 +1075,19 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .ct-head .n { font-size: calc(12px * var(--ui-scale)); color: var(--faint); font-variant-numeric: tabular-nums; }
 .ct-row { display: flex; align-items: center; gap: 10px; padding: 7px 6px 7px 10px; border-radius: 9px; cursor: pointer; }
 .ct-row:hover { background: var(--hover); }
-.ct-row + .ct-row { box-shadow: inset 0 1px 0 var(--line); }
+.ct-row + .ct-row, .ct-details + .ct-row { box-shadow: inset 0 1px 0 var(--line); }
 .ct-row:hover, .ct-row:hover + .ct-row { box-shadow: none; }
+/* a contact's Details: a toggle on its row, and its note and fields below */
+.ct-det-btn { height: 26px; padding: 0 6px 0 9px; gap: 3px; font-size: calc(12px * var(--ui-scale)); color: var(--faint); flex-shrink: 0; }
+.ct-det-btn .arrow { display: inline-flex; transform: rotate(90deg); transition: transform 0.18s; }
+.ct-det-btn .arrow .ic { width: 13px; height: 13px; }
+.ct-row.open .ct-det-btn { color: var(--accent); }
+.ct-row.open .ct-det-btn .arrow { transform: rotate(-90deg); }
+.ct-row.open { background: var(--hover); border-radius: 9px 9px 0 0; }
+.ct-details { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 18px; margin: 0 0 4px; padding: 6px 16px 12px 54px;
+  background: var(--hover); border-radius: 0 0 9px 9px; font-size: calc(12.5px * var(--ui-scale)); cursor: default; }
+.ct-dk { color: var(--faint); }
+.ct-dv { color: var(--text); overflow-wrap: anywhere; user-select: text; }
 .ct-ic { display: inline-flex; width: 28px; height: 28px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; background: var(--chip); color: var(--muted); }
 .ct-row[data-ct] .ct-ic .ic { width: 15px; height: 15px; }
 .ct-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }

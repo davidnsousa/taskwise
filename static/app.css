@@ -1103,7 +1103,12 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 /* the lists a contact is in, as chips under its name */
 .ct-lists { display: flex; align-items: center; gap: 4px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; max-width: 40%; }
 .ct-lchip { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px; white-space: nowrap;
-  background: var(--accent-bg); color: var(--accent); font-size: calc(10.5px * var(--ui-scale)); font-weight: 550; }
+  --lc: var(--accent); background: color-mix(in srgb, var(--lc) 16%, transparent); color: color-mix(in srgb, var(--lc) 75%, var(--text)); font-size: calc(10.5px * var(--ui-scale)); font-weight: 550; }
+.ct-lchip .ic { color: var(--lc); }
+.ct-ic[style*="--lc"] { background: color-mix(in srgb, var(--lc) 18%, transparent); color: var(--lc); }
+.lc-ic { display: inline-flex; }
+.tog span[style*="--lc"] .ic { color: var(--lc); }
+.tog input:checked + span[style*="--lc"] { background: color-mix(in srgb, var(--lc) 16%, transparent); border-color: color-mix(in srgb, var(--lc) 50%, transparent); color: color-mix(in srgb, var(--lc) 75%, var(--text)); }
 .ct-lchip .ic { width: 11px; height: 11px; }
 /* markers for the tasks a contact or list is on */
 .ct-marks { display: flex; align-items: center; gap: 4px; flex-shrink: 1; min-width: 0; max-width: 50%; overflow: hidden; }

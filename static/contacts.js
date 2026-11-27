@@ -17,6 +17,16 @@ function ctItem(id) {
 }
 const listMembers = l => (l.members || []).map(contactById).filter(Boolean);
 const ctName = c => c.name || c.email || "(no name)";
+// each list has its own colour: the one picked for it, else one from its id
+function listColor(l) {
+  if (!l) return "var(--people)";
+  if (l.color) return l.color;
+  let h = 0; for (const ch of String(l.id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+// a new list gets a colour no other list has yet, while there are some left
+const freeListColor = () => PALETTE.find(c => !ws.contactLists.some(l => listColor(l) === c)) || PALETTE[ws.contactLists.length % PALETTE.length];
+const listIcon = l => `<span class="lc-ic" style="color:${listColor(l)}">${ICON.users}</span>`;
 const ctLabel = it => it.kind === "list" ? it.x.name || "(unnamed list)" : ctName(it.x);
 const ctEmails = it => (it.kind === "list" ? listMembers(it.x).map(c => c.email) : [it.x.email]).filter(Boolean);
 const tasksWithContact = id => ws.notes.filter(n => (n.contacts || []).includes(id));
@@ -90,7 +100,7 @@ function contactChipList(n) {
     const it = ctItem(id); if (!it) return "";
     const emails = ctEmails(it);
     const title = it.kind === "list" ? `list: ${emails.length} address${emails.length === 1 ? "" : "es"}` : it.x.email || "no email";
-    return `<span class="ct-wrap ${it.kind}" data-ct="${id}" data-ct-note="${n.id}" title="${esc(title)}">${it.kind === "list" ? ICON.users : ICON.user}`
+    return `<span class="ct-wrap ${it.kind}" data-ct="${id}" data-ct-note="${n.id}" title="${esc(title)}"${it.kind === "list" ? ` style="--people:${listColor(it.x)}"` : ""}>${it.kind === "list" ? ICON.users : ICON.user}`
       + `<span class="ct-n">${esc(ctLabel(it))}</span><button class="ct-more" title="Contact menu" draggable="false">${ICON.more}</button></span>`;
   }).filter(Boolean);
 }
@@ -181,7 +191,7 @@ function editContact(id, { after, name = "", email = "" } = {}) {
       <div><button class="ghost cf-add" id="cAddField">${ICON.plusSm} field</button></div></div>
     ${c ? "" : pasteHtml("cb", "Or add several at once")}
     ${lists.length ? `<div class="section-f"><span class="lbl">Lists${c ? "" : ` <span class="opt">· for everyone you add</span>`}</span><div class="tog-chips">${lists.map(l =>
-      `<label class="tog"><input type="checkbox" data-l="${l.id}" ${c && (l.members || []).includes(c.id) ? "checked" : ""}><span>${ICON.users}${esc(l.name)}</span></label>`).join("")}</div></div>` : ""}
+      `<label class="tog"><input type="checkbox" data-l="${l.id}" ${c && (l.members || []).includes(c.id) ? "checked" : ""}><span style="--lc:${listColor(l)}">${ICON.users}${esc(l.name)}</span></label>`).join("")}</div></div>` : ""}
     <div id="cErr" class="due-preview bad"></div>
     <div class="foot"><div class="spacer"></div><button id="cCancel">Cancel</button><button class="primary" id="cOk">${c ? "Save" : "Add contact"}</button></div>`, "wide");
   $("#cName", o).value = c?.name ?? name;
@@ -446,6 +456,7 @@ function editContactList(id, { after } = {}) {
   const sorted = [...ws.contacts].sort((a, b) => isIn(a) - isIn(b) || ctName(a).localeCompare(ctName(b)));
   const o = modal(`<h3>${l ? "Edit list" : "New list"}</h3>
     <label class="f">Name<input type="text" id="clName"></label>
+    <div class="section-f"><span class="lbl">Colour</span>${colorRow("")}</div>
     <div class="section-f">
       <div class="mem-head"><span class="lbl">Members</span><span class="mem-count" id="clCount"></span><span class="spacer"></span>
         ${sorted.length ? `<span class="mem-search">${ICON_SEARCH}<input type="search" id="clFilter" placeholder="Search contacts"></span>
@@ -458,6 +469,11 @@ function editContactList(id, { after } = {}) {
     <div id="clErr" class="due-preview bad"></div>
     <div class="foot"><div class="spacer"></div><button id="clCancel">Cancel</button><button class="primary" id="clOk">${l ? "Save" : "Add list"}</button></div>`, "wide");
   $("#clName", o).value = l?.name || "";
+  // the colour: the list's own, or a free one for a new list
+  let color = l ? listColor(l) : freeListColor();
+  const markColor = () => $$(".colors button", o).forEach(b => b.classList.toggle("on", b.dataset.color === color));
+  markColor();
+  $(".colors", o).addEventListener("click", e => { const b = e.target.closest("[data-color]"); if (b) { color = b.dataset.color; markColor(); } });
   $("#clName", o).focus();
   const count = () => {
     const all = $$("[data-c]", o), on = all.filter(b => b.checked).length;
@@ -480,6 +496,7 @@ function editContactList(id, { after } = {}) {
     if (!nm) { $("#clErr", o).textContent = "Give the list a name."; return; }
     const x = l || { id: uid() };
     x.name = nm;
+    x.color = color;
     x.members = $$("[data-c]", o).filter(b => b.checked).map(b => b.dataset.c);
     // the ticked pasted contacts join the list (existing ones reused)
     for (const r of pastedRows()) {
@@ -536,7 +553,7 @@ function renderContacts(main) {
   // det: a contact's note and fields, folded under a Details button
   const row = (id, kind, title, sub, det = null, right = "") => `<div class="ct-row ${det?.open ? "open" : ""}" data-ct="${id}" data-kind="${kind}" ${kind === "contact" ? `draggable="true"` : ""}
       title="${kind === "contact" ? "click to edit · drag onto a list to add it there" : "click to edit · drop contacts here to add them"}">
-      <span class="ct-ic">${kind === "list" ? ICON.users : ICON.user}</span>
+      <span class="ct-ic"${kind === "list" ? ` style="--lc:${listColor(contactListById(id))}"` : ""}>${kind === "list" ? ICON.users : ICON.user}</span>
       <span class="ct-main"><span class="ct-t">${esc(title)}</span><span class="ct-sub">${sub}</span></span>
       ${right}${marks(id, kind)}${det ? `<button class="ghost ct-det-btn" data-ct-det="${id}" title="${det.open ? "Hide details" : "Show details"}" draggable="false">Details<span class="arrow">${ICON.chevron}</span></button>`
         : kind === "contact" ? `<button class="ghost ct-det-btn ph" tabindex="-1" aria-hidden="true">Details<span class="arrow">${ICON.chevron}</span></button>` : ""}
@@ -562,7 +579,7 @@ function renderContacts(main) {
     const items = [...(c.note ? [["Note", c.note]] : []), ...Object.entries(c.fields || {})];
     const det = items.length ? { items, open: ctOpen.has(c.id) || (words.length > 0 && words.some(w => items.some(([k, v]) => `${k} ${v}`.toLowerCase().includes(w)))) } : null;
     return row(c.id, "contact", ctName(c), esc(c.email), det,
-      inLists.length ? `<span class="ct-lists">${inLists.map(l => `<span class="ct-lchip" title="in the list ${esc(l.name)}">${ICON.users}${esc(l.name)}</span>`).join("")}</span>` : "");
+      inLists.length ? `<span class="ct-lists">${inLists.map(l => `<span class="ct-lchip" style="--lc:${listColor(l)}" title="in the list ${esc(l.name)}">${ICON.users}${esc(l.name)}</span>`).join("")}</span>` : "");
   }).join("");
   const none = words.length || ctFilter.list ? "No match." : null;
   // Lists above Contacts, or side by side (a view option); each with a +
@@ -651,7 +668,7 @@ function contactPanel(n, o, touch) {
     const ls = ws.contactLists.filter(l => !q || l.name.toLowerCase().includes(q));
     const cs = ws.contacts.filter(c => !q || `${c.name} ${c.email}`.toLowerCase().includes(q));
     let html = "";
-    if (ls.length) html += `<div class="grp">Lists</div>` + ls.map(l => lbl(l.id, ICON.users, l.name, `${listMembers(l).length} contacts`)).join("");
+    if (ls.length) html += `<div class="grp">Lists</div>` + ls.map(l => lbl(l.id, listIcon(l), l.name, `${listMembers(l).length} contacts`)).join("");
     if (cs.length) html += `<div class="grp">Contacts</div>` + cs.map(c => lbl(c.id, ICON.user, ctName(c), c.email)).join("");
     pick.innerHTML = html || `<div class="none">${ws.contacts.length || ws.contactLists.length ? "no match" : "No contacts yet — add one below."}</div>`;
   };
@@ -704,7 +721,7 @@ function contactPickMenu(n, anchor) {
   const many = lists.length + people.length > 8;
   popMenu(anchor, `<div class="menu-label">Contacts on “${esc(n.title || "(untitled)")}”</div>
     ${many ? `<input type="search" class="cpm-filter" placeholder="filter…">` : ""}
-    <div class="cpm-list">${lists.length ? `<div class="menu-label">Lists</div>` + lists.map(l => row(l.id, ICON.users, l.name, `${listMembers(l).length} contacts`)).join("") : ""}
+    <div class="cpm-list">${lists.length ? `<div class="menu-label">Lists</div>` + lists.map(l => row(l.id, listIcon(l), l.name, `${listMembers(l).length} contacts`)).join("") : ""}
     ${people.length ? `<div class="menu-label">Contacts</div>` + people.map(c => row(c.id, ICON.user, ctName(c), c.email)).join("") : ""}
     ${lists.length + people.length ? "" : `<div class="today-empty">No contacts yet.</div>`}</div>
     <hr><button data-m="new">${ICON.plusSm} New contact…</button>`, d => {

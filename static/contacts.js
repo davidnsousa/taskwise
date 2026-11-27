@@ -24,6 +24,10 @@ const tasksWithContact = id => ws.notes.filter(n => (n.contacts || []).includes(
 const taskEmails = n => [...new Set((n.contacts || []).map(ctItem).filter(Boolean).flatMap(ctEmails))];
 const validEmail = s => /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(s);
 // searchable text for a task's contacts
+// the extra fields' names used across contacts (for suggestions), and a
+// contact's fields as "Name: value" text
+const fieldNames = () => [...new Set(ws.contacts.flatMap(c => Object.keys(c.fields || {})))].sort((a, b) => a.localeCompare(b));
+const fieldText = c => Object.entries(c.fields || {}).map(([k, v]) => `${k}: ${v}`).join(" · ");
 const contactText = n => (n.contacts || []).map(ctItem).filter(Boolean).map(it => `${ctLabel(it)} ${ctEmails(it).join(" ")}`).join(" ");
 
 // ---------- sending email ----------
@@ -171,6 +175,10 @@ function editContact(id, { after, name = "", email = "" } = {}) {
       <label class="f">Email<input type="text" id="cEmail" placeholder="name@example.com"></label>
       <label class="f wide"><span>Note <span class="opt">· optional</span></span><input type="text" id="cNote" placeholder="role, company, phone…"></label>
     </div>
+    <div class="section-f"><span class="lbl">Fields <span class="opt">· phone, company, school… (pasted spreadsheet columns land here)</span></span>
+      <div class="cf-list" id="cFields"></div>
+      <datalist id="cFieldNames">${fieldNames().map(k => `<option value="${esc(k)}">`).join("")}</datalist>
+      <div><button class="ghost cf-add" id="cAddField">${ICON.plusSm} field</button></div></div>
     ${lists.length ? `<div class="section-f"><span class="lbl">Lists</span><div class="tog-chips">${lists.map(l =>
       `<label class="tog"><input type="checkbox" data-l="${l.id}" ${c && (l.members || []).includes(c.id) ? "checked" : ""}><span>${ICON.users}${esc(l.name)}</span></label>`).join("")}</div></div>` : ""}
     <div id="cErr" class="due-preview bad"></div>
@@ -178,6 +186,19 @@ function editContact(id, { after, name = "", email = "" } = {}) {
   $("#cName", o).value = c?.name ?? name;
   $("#cEmail", o).value = c?.email ?? email;
   $("#cNote", o).value = c?.note || "";
+  // extra fields: a name and a value per row
+  const fieldRow = (k = "", v = "") => {
+    const d = document.createElement("div");
+    d.className = "cf-row";
+    d.innerHTML = `<input type="text" class="cf-k" list="cFieldNames" placeholder="field"><input type="text" class="cf-v" placeholder="value">`
+      + `<button class="ghost icon cf-x" title="Remove this field">${ICON.x}</button>`;
+    $(".cf-k", d).value = k; $(".cf-v", d).value = v;
+    $("#cFields", o).appendChild(d);
+    return d;
+  };
+  for (const [k, v] of Object.entries(c?.fields || {})) fieldRow(k, v);
+  $("#cAddField", o).onclick = () => $(".cf-k", fieldRow()).focus();
+  $("#cFields", o).addEventListener("click", e => { const x = e.target.closest(".cf-x"); if (x) x.closest(".cf-row").remove(); });
   $(c || !name ? "#cName" : "#cEmail", o).focus();
   const ok = () => {
     const nm = $("#cName", o).value.trim(), em = $("#cEmail", o).value.trim(), nt = $("#cNote", o).value.trim();
@@ -187,6 +208,12 @@ function editContact(id, { after, name = "", email = "" } = {}) {
     const x = c || { id: uid() };
     Object.assign(x, { name: nm, email: em });
     if (nt) x.note = nt; else delete x.note;
+    const fields = {};
+    for (const r of $$(".cf-row", o)) {
+      const k = $(".cf-k", r).value.trim(), v = $(".cf-v", r).value.trim();
+      if (k && v) fields[k] = v;
+    }
+    if (Object.keys(fields).length) x.fields = fields; else delete x.fields;
     if (!c) ws.contacts.push(x);
     $$("[data-l]", o).forEach(b => {
       const l = contactListById(b.dataset.l); if (!l) return;
@@ -253,16 +280,31 @@ function parseContacts(text) {
     return { rows: dedupe(rows), skipped: parts.length - rows.length, sep: SEP_NAMES[d] + ", one line" };
   }
   const table = lines.map(s => sep ? splitCells(s, sep) : [s.trim()]);
-  // a header row: no email in it, and a cell that names the email column
+  // a header row: the first row has no email but rows under it do (or it
+  // names an email column). Its name, email and note columns are used; every
+  // other named column is kept as an extra field on the contact.
   let cols = null;
   const head = table[0];
-  if (!head.some(c => EMAIL_RE.test(c)) && head.some(c => /e-?mail|correio/i.test(c))) {
-    const find = re => head.findIndex(c => re.test(c.trim()));
-    const email = find(/e-?mail|correio/i);
-    const last = find(/last|surname|family|apelido|sobrenome/i);
-    const first = find(/first|given|primeiro/i);
-    let name = head.findIndex((c, i) => i !== email && i !== last && i !== first && /name|nome/i.test(c));
-    cols = { email, name: first >= 0 ? first : name, last: last >= 0 ? last : -1 };
+  const headLike = !head.some(c => EMAIL_RE.test(c)) && head.some(c => c.trim())
+    && (head.some(c => /e-?mail|correio/i.test(c)) || (sep && table.slice(1).some(r => r.some(c => EMAIL_RE.test(c)))));
+  if (headLike && table.length > 1) {
+    const find = (re, not = []) => head.findIndex((c, i) => !not.includes(i) && re.test(c.trim()));
+    let email = find(/e-?mail|correio/i);
+    if (email < 0) {
+      // no column called email: the one holding the most addresses
+      const hits = head.map((_, i) => table.slice(1).filter(r => EMAIL_RE.test(r[i] || "")).length);
+      email = hits.indexOf(Math.max(...hits));
+    }
+    const last = find(/last|surname|family|apelido|sobrenome/i, [email]);
+    const first = find(/first|given|primeiro/i, [email, last]);
+    let name = find(/name|nome/i, [email, last, first]);
+    // no name column at all: the first other column of short name-like text
+    if (name < 0 && first < 0) name = head.findIndex((_, i) => i !== email && i !== last
+      && table.slice(1).some(r => r[i] && looksLikeName(r[i])));
+    const note = find(/^(notes?|notas?|obs|observa|comment|coment)/i, [email, last, first, name]);
+    const used = [email, last, first, name, note];
+    const extra = head.map((h, i) => ({ i, label: h.replace(/\s+/g, " ").trim() })).filter(x => x.label && !used.includes(x.i));
+    cols = { email, name: first >= 0 ? first : name, last, note, extra };
     table.shift();
   }
   const rows = []; let skipped = 0;
@@ -270,7 +312,13 @@ function parseContacts(text) {
     let r = null;
     if (cols) {
       const em = (cells[cols.email] || "").match(EMAIL_RE)?.[0] || cells.map(c => c.match(EMAIL_RE)?.[0]).find(Boolean);
-      if (em) r = { email: em, name: [cells[cols.name], cols.last >= 0 ? cells[cols.last] : ""].filter(Boolean).join(" ").trim() };
+      if (em) {
+        r = { email: em, name: [cols.name >= 0 ? cells[cols.name] : "", cols.last >= 0 ? cells[cols.last] : ""].filter(Boolean).join(" ").trim() };
+        if (cols.note >= 0 && cells[cols.note]) r.note = cells[cols.note].trim();
+        const f = {};
+        for (const x of cols.extra) if ((cells[x.i] || "").trim()) f[x.label] = cells[x.i].trim();
+        if (Object.keys(f).length) r.fields = f;
+      }
     } else {
       const ei = cells.findIndex(c => EMAIL_RE.test(c));
       if (ei >= 0) {
@@ -283,9 +331,12 @@ function parseContacts(text) {
         }
       }
     }
-    if (r) rows.push({ name: r.name.replace(/\s+/g, " ").trim(), email: r.email.trim() }); else skipped++;
+    if (r) rows.push({ ...r, name: r.name.replace(/\s+/g, " ").trim(), email: r.email.trim() }); else skipped++;
   }
-  return { rows: dedupe(rows), skipped, sep: SEP_NAMES[sep] + (cols ? ", with a header row" : "") };
+  // what the header said each column is, for the preview
+  const columns = cols ? head.map((h, i) => ({ label: h.trim() || `column ${i + 1}`,
+    use: i === cols.email ? "email" : i === cols.name || i === cols.last ? "name" : i === cols.note ? "note" : cols.extra.some(x => x.i === i) ? "field" : "" })) : null;
+  return { rows: dedupe(rows), skipped, sep: SEP_NAMES[sep] + (cols ? ", with a header row" : ""), columns };
 }
 // the same address twice: keep the first, with a name if either had one.
 // "Lovelace, Ada" (address books) reads "Ada Lovelace"
@@ -295,7 +346,12 @@ function dedupe(rows) {
     const m = r.name.match(/^([^,]+),\s*([^,]+)$/);
     if (m) r.name = `${m[2].trim()} ${m[1].trim()}`;
     const k = r.email.toLowerCase(), had = by.get(k);
-    if (!had) by.set(k, { ...r }); else if (!had.name && r.name) had.name = r.name;
+    if (!had) by.set(k, { ...r });
+    else {
+      if (!had.name && r.name) had.name = r.name;
+      if (!had.note && r.note) had.note = r.note;
+      if (r.fields) had.fields = { ...r.fields, ...(had.fields || {}) };
+    }
   }
   return [...by.values()];
 }
@@ -303,8 +359,8 @@ function dedupe(rows) {
 // a selectable person card: initials that turn into a tick when chosen
 const initials = s => (s || "?").replace(/@.*/, "").split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
 const ICON_SEARCH = '<svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
-const memCard = (attr, checked, name, email, extra = "") =>
-  `<label class="mem" data-q="${esc((name + " " + email).toLowerCase())}"><input type="checkbox" ${attr} ${checked ? "checked" : ""}>`
+const memCard = (attr, checked, name, email, extra = "", tip = "") =>
+  `<label class="mem" data-q="${esc((name + " " + email).toLowerCase())}"${tip ? ` title="${esc(tip)}"` : ""}><input type="checkbox" ${attr} ${checked ? "checked" : ""}>`
   + `<span class="av">${esc(initials(name && name !== "(no name)" ? name : email))}</span><span class="av-check">${ICON.check}</span>`
   + `<span class="mem-t"><span class="mem-n">${esc(name)}</span><span class="mem-e">${esc(email)}</span></span>${extra}</label>`;
 
@@ -354,13 +410,17 @@ function editContactList(id, { after } = {}) {
     box.hidden = !$("#clPaste", o).value.trim();
     const fresh = pasted.filter(r => !byEmail(r.email)).length;
     const skip = p.skipped ? ` · ${p.skipped} row${p.skipped === 1 ? "" : "s"} without an email skipped` : "";
+    const USE = { email: "email", name: "name", note: "note", field: "new field", "": "not used" };
     box.innerHTML = `<div class="imp-sum">${pasted.length
         ? `<b>${pasted.length}</b> contact${pasted.length === 1 ? "" : "s"} found (${fresh} new, ${pasted.length - fresh} already in your contacts) · separated by ${p.sep}${skip}`
         : `No email addresses found${skip}.`}</div>`
+      + (p.columns && pasted.length ? `<div class="imp-cols">${p.columns.map(c =>
+          `<span class="imp-col ${c.use || "none"}" title="${esc(c.use === "field" ? `kept on each contact as “${c.label}”` : USE[c.use])}"><b>${esc(c.label)}</b>${USE[c.use]}</span>`).join("")}</div>` : "")
       + (pasted.length ? `<div class="mem-grid imp-rows">${pasted.map((r, i) => {
         const had = byEmail(r.email);
+        const tip = Object.entries({ ...(r.note ? { Note: r.note } : {}), ...(r.fields || {}) }).map(([k, v]) => `${k}: ${v}`).join("\n");
         return memCard(`data-imp="${i}"`, true, r.name || had?.name || "(no name)", r.email,
-          `<span class="imp-tag ${had ? "" : "new"}">${had ? "existing" : "new"}</span>`);
+          `<span class="imp-tag ${had ? "" : "new"}">${had ? "existing" : "new"}</span>`, tip);
       }).join("")}</div>` : "");
   };
   $("#clPaste", o).addEventListener("input", renderImport);
@@ -377,6 +437,12 @@ function editContactList(id, { after } = {}) {
       let c = byEmail(r.email);
       if (!c) { c = { id: uid(), name: r.name, email: r.email }; ws.contacts.push(c); }
       else if (!c.name && r.name) c.name = r.name;
+      // a note and extra columns fill in what the contact doesn't have yet
+      if (r.note && !c.note) c.note = r.note;
+      for (const [k, v] of Object.entries(r.fields || {})) {
+        c.fields ||= {};
+        if (!c.fields[k]) c.fields[k] = v;
+      }
       if (!x.members.includes(c.id)) x.members.push(c.id);
     }
     if (!l) ws.contactLists.push(x);
@@ -416,7 +482,7 @@ function renderContacts(main) {
   const lists = [...ws.contactLists].sort((a, b) => a.name.localeCompare(b.name))
     .filter(l => hit(`${l.name} ${listMembers(l).map(c => ctName(c) + " " + c.email).join(" ")}`));
   const people = [...ws.contacts].sort((a, b) => ctName(a).localeCompare(ctName(b)))
-    .filter(c => hit(`${c.name} ${c.email} ${c.note || ""}`));
+    .filter(c => hit(`${c.name} ${c.email} ${c.note || ""} ${Object.entries(c.fields || {}).flat().join(" ")}`));
   const listRows = lists.map(l => {
     const m = listMembers(l);
     return row(l.id, "list", l.name, m.length ? esc(m.map(ctName).join(", ")) : `<i>no members yet</i>`);
@@ -424,7 +490,7 @@ function renderContacts(main) {
   const peopleRows = people.map(c => {
     // the lists it is in, as chips after the email
     const inLists = ws.contactLists.filter(l => (l.members || []).includes(c.id));
-    return row(c.id, "contact", ctName(c), esc([c.email, c.note].filter(Boolean).join(" · "))
+    return row(c.id, "contact", ctName(c), esc([c.email, c.note, fieldText(c)].filter(Boolean).join(" · "))
       + inLists.map(l => `<span class="ct-lchip" title="in the list ${esc(l.name)}">${ICON.users}${esc(l.name)}</span>`).join(""));
   }).join("");
   const none = words.length ? "No match." : null;

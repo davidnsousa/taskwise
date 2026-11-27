@@ -1124,6 +1124,20 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .imp-rows { max-height: 240px; }
 .imp-rows .imp-tag { flex-shrink: 0; }
 .imp-tag { font-size: calc(10.5px * var(--ui-scale)); color: var(--faint); background: var(--chip); border-radius: 999px; padding: 1px 7px; }
+/* what each pasted column became: name, email, note, a new field, or unused */
+.imp-cols { display: flex; flex-wrap: wrap; gap: 5px; }
+.imp-col { display: inline-flex; align-items: baseline; gap: 6px; padding: 3px 9px; border-radius: 8px; font-size: calc(11px * var(--ui-scale)); color: var(--faint); box-shadow: inset 0 0 0 1px var(--border); }
+.imp-col b { font-weight: 600; color: var(--text); }
+.imp-col.email, .imp-col.name, .imp-col.note { background: var(--chip); }
+.imp-col.field { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--people) 45%, transparent); color: var(--people); }
+.imp-col.none { opacity: 0.6; }
+/* a contact's extra fields */
+.cf-list { display: flex; flex-direction: column; gap: 6px; }
+.cf-list:empty { display: none; }
+.cf-row { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr) auto; gap: 8px; align-items: center; }
+.cf-row input { min-width: 0; }
+.cf-row .cf-k { color: var(--muted); }
+.cf-add { height: 28px; font-size: calc(12px * var(--ui-scale)); }
 .imp-tag.new { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
 
 /* Settings › Email: the chosen app's links */

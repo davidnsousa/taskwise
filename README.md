@@ -79,7 +79,9 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 **Contacts**
 - One address book for every board, in the Contacts view: people (name, email, an optional note) and lists of them; a contact can be in several lists, shown as chips on it. Drag a contact onto a list to add it there
 - Contacts and lists carry markers for the tasks they're on (through a list, too); click one to open the task
-- A list can be filled by pasting rows from a spreadsheet, a CSV or an email's To line: the separator (tabs, semicolons, commas, `|`) is found by itself, a header row's name and email columns (or first and last name) are used, and a preview shows which contacts are new before they're added
+- A list can be filled by pasting rows from a spreadsheet, a CSV or an email's To line: the separator (tabs, semicolons, commas, `|`) is found by itself, and a preview shows which contacts are new before they're added
+- A header row is detected by itself. Its name (or first and last name), email and note columns are used, and every other column (phone, company, school…) is kept as a field on each contact. For someone already in your contacts, only missing fields are filled in
+- A contact's fields can be edited, and added by hand, in the contact editor; they show in the Contacts view and are searched
 - Add contacts or whole lists to a task with **+ contact** in its panel (where you can also add a new contact on the spot), or from the task's right-click menu › Add contact or list…
 - A contact or list on a task opens a menu (click, ⋯ or right-click): new email to them as To, CC or BCC (the task's title is the subject), copy the addresses, edit, or remove from the task. The task's own menu can email everyone on it
 - Settings › Email picks how messages open: Outlook (web), Gmail (web) or your default mail app. It starts unset. The chosen app's To, CC and BCC links can be edited there (with `{addresses}`, `{subject}` and `{mailto}`), and reset to their defaults

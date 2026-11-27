@@ -60,6 +60,15 @@
   <button id="outOfSight" class="ghost" title="Open the sidebar to see and wake them"></button>
   <span id="count"></span>
 </div>
+<!-- in the Contacts view, in place of the task filters -->
+<div id="ctFilters" hidden>
+  <input id="ctSearch" type="search" placeholder="Search contacts…  ( / )">
+  <select id="ctListFilter" title="Show the contacts of one list"></select>
+  <label class="vopt" title="Lists and Contacts next to each other"><input type="checkbox" id="ctSide"> Side by side</label>
+  <button id="ctClear" class="ghost">Clear</button>
+  <div class="spacer"></div>
+  <span id="ctCount"></span>
+</div>
 <div class="banner" id="offline">Taskwise has stopped — start it again from the app menu (or run <code>taskwise --open</code>); this page reconnects by itself.</div>
 <div class="banner" id="conflict">
   <span>The board was changed on disk (another machine or tab?) while you had unsaved edits.</span>

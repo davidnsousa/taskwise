@@ -578,6 +578,9 @@ function renderMain() {
   const main = $("#main");
   main.classList.toggle("table-mode", ui.view === "table");
   main.dataset.view = ui.view;
+  // the Contacts view has its own bar in place of the task filters
+  $("#filters").hidden = ui.view === "contacts";
+  $("#ctFilters").hidden = ui.view !== "contacts";
   if (ui.view === "table") renderTable(main);
   else if (typeof VIEWS !== "undefined" && VIEWS[ui.view]) VIEWS[ui.view].render(main);
   else renderBoard(main);
@@ -1566,7 +1569,7 @@ function closeModal() { $(".overlay")?.remove(); }
 document.addEventListener("keydown", e => {
   const o = $(".overlay");
   if (e.key === "Escape" && o) { e.preventDefault(); o._close?.(); return; }
-  if (e.key === "/" && !o && !e.target.matches("input, textarea, select")) { e.preventDefault(); $("#search").focus(); }
+  if (e.key === "/" && !o && !e.target.matches("input, textarea, select")) { e.preventDefault(); $(ui.view === "contacts" ? "#ctSearch" : "#search").focus(); }
   // 1-9 and 0 pick a view (each button's data-key)
   if (/^[0-9]$/.test(e.key) && !o && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.matches("input, textarea, select, [contenteditable]")) {
     const b = $(`#viewSeg button[data-key="${e.key}"]`);

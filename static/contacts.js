@@ -497,8 +497,25 @@ function editContactList(id, { after } = {}) {
 
 // ---------- the Contacts view ----------
 const ctOpen = new Set();   // contacts whose details are shown (until reload)
+// the Contacts bar: a search, and a list to show ("" all, "none" no list)
+const ctFilter = { q: "", list: "" };
+function renderCtFilters(shown, total) {
+  const sel = $("#ctListFilter");
+  if (ctFilter.list && ctFilter.list !== "none" && !contactListById(ctFilter.list)) ctFilter.list = "";
+  sel.innerHTML = `<option value="">All contacts</option><option value="none">Not in any list</option>`
+    + [...ws.contactLists].sort((a, b) => a.name.localeCompare(b.name)).map(l => `<option value="${l.id}">In ${esc(l.name)}</option>`).join("");
+  sel.value = ctFilter.list;
+  if ($("#ctSearch").value !== ctFilter.q) $("#ctSearch").value = ctFilter.q;
+  $("#ctSide").checked = !!vopt("ctSide", false);
+  $("#ctClear").hidden = !ctFilter.q && !ctFilter.list;
+  $("#ctCount").textContent = shown === total ? `${total} contact${total === 1 ? "" : "s"}` : `${shown} of ${total} contacts`;
+}
+document.getElementById("ctSearch").addEventListener("input", e => { ctFilter.q = e.target.value; renderMain(); });
+document.getElementById("ctListFilter").addEventListener("change", e => { ctFilter.list = e.target.value; renderMain(); });
+document.getElementById("ctSide").addEventListener("change", e => { setVopt("ctSide", e.target.checked); renderMain(); });
+document.getElementById("ctClear").addEventListener("click", () => { ctFilter.q = ""; ctFilter.list = ""; renderMain(); });
 function renderContacts(main) {
-  const words = (ui.q || "").toLowerCase().split(/\s+/).filter(Boolean);
+  const words = ctFilter.q.toLowerCase().split(/\s+/).filter(Boolean);
   const hit = s => words.every(w => s.toLowerCase().includes(w));
   // markers for the tasks a contact or list is on: a contact's own tasks,
   // then those it reaches through a list (lighter); click one to open it
@@ -517,18 +534,22 @@ function renderContacts(main) {
     }).join("")}${more > 0 ? `<span class="ct-mark-more" title="${esc(items.slice(MAX).map(x => x.n.title || "(untitled)").join(", "))}">+${more}</span>` : ""}</span>`;
   };
   // det: a contact's note and fields, folded under a Details button
-  const row = (id, kind, title, sub, det = null) => `<div class="ct-row ${det?.open ? "open" : ""}" data-ct="${id}" data-kind="${kind}" ${kind === "contact" ? `draggable="true"` : ""}
+  const row = (id, kind, title, sub, det = null, right = "") => `<div class="ct-row ${det?.open ? "open" : ""}" data-ct="${id}" data-kind="${kind}" ${kind === "contact" ? `draggable="true"` : ""}
       title="${kind === "contact" ? "click to edit · drag onto a list to add it there" : "click to edit · drop contacts here to add them"}">
       <span class="ct-ic">${kind === "list" ? ICON.users : ICON.user}</span>
       <span class="ct-main"><span class="ct-t">${esc(title)}</span><span class="ct-sub">${sub}</span></span>
-      ${marks(id, kind)}${det ? `<button class="ghost ct-det-btn" data-ct-det="${id}" title="${det.open ? "Hide details" : "Show details"}" draggable="false">Details<span class="arrow">${ICON.chevron}</span></button>` : ""}
+      ${right}${marks(id, kind)}${det ? `<button class="ghost ct-det-btn" data-ct-det="${id}" title="${det.open ? "Hide details" : "Show details"}" draggable="false">Details<span class="arrow">${ICON.chevron}</span></button>`
+        : kind === "contact" ? `<button class="ghost ct-det-btn ph" tabindex="-1" aria-hidden="true">Details<span class="arrow">${ICON.chevron}</span></button>` : ""}
       <button class="ghost icon ct-more" title="Contact menu" draggable="false">${ICON.more}</button></div>`
     + (det?.open ? `<div class="ct-details" data-ct-of="${id}">${det.items.map(([k, v]) =>
       `<span class="ct-dk">${esc(k)}</span><span class="ct-dv">${esc(v)}</span>`).join("")}</div>` : "");
   const lists = [...ws.contactLists].sort((a, b) => a.name.localeCompare(b.name))
     .filter(l => hit(`${l.name} ${listMembers(l).map(c => ctName(c) + " " + c.email).join(" ")}`));
   const people = [...ws.contacts].sort((a, b) => ctName(a).localeCompare(ctName(b)))
-    .filter(c => hit(`${c.name} ${c.email} ${c.note || ""} ${Object.entries(c.fields || {}).flat().join(" ")}`));
+    .filter(c => hit(`${c.name} ${c.email} ${c.note || ""} ${Object.entries(c.fields || {}).flat().join(" ")}`))
+    .filter(c => !ctFilter.list || (ctFilter.list === "none"
+      ? !ws.contactLists.some(l => (l.members || []).includes(c.id))
+      : (contactListById(ctFilter.list)?.members || []).includes(c.id)));
   const listRows = lists.map(l => {
     const m = listMembers(l);
     return row(l.id, "list", l.name, m.length ? esc(m.map(ctName).join(", ")) : `<i>no members yet</i>`);
@@ -540,15 +561,15 @@ function renderContacts(main) {
     // open when asked for, or when a search word is found in them
     const items = [...(c.note ? [["Note", c.note]] : []), ...Object.entries(c.fields || {})];
     const det = items.length ? { items, open: ctOpen.has(c.id) || (words.length > 0 && words.some(w => items.some(([k, v]) => `${k} ${v}`.toLowerCase().includes(w)))) } : null;
-    return row(c.id, "contact", ctName(c), esc(c.email)
-      + inLists.map(l => `<span class="ct-lchip" title="in the list ${esc(l.name)}">${ICON.users}${esc(l.name)}</span>`).join(""), det);
+    return row(c.id, "contact", ctName(c), esc(c.email), det,
+      inLists.length ? `<span class="ct-lists">${inLists.map(l => `<span class="ct-lchip" title="in the list ${esc(l.name)}">${ICON.users}${esc(l.name)}</span>`).join("")}</span>` : "");
   }).join("");
-  const none = words.length ? "No match." : null;
+  const none = words.length || ctFilter.list ? "No match." : null;
   // Lists above Contacts, or side by side (a view option); each with a +
   // in its header like a board's sections
   const side = vopt("ctSide", false);
-  main.innerHTML = `<div class="vwrap ctv">${vbar(`<span class="hint">One address book for every board. Drag a contact onto a list to add it there; on a task, use <b>+ contact</b> or right-click › Add contact or list.</span><span class="spacer"></span>
-      ${optCheck("ctSide", false, "Side by side")}`)}
+  renderCtFilters(people.length, ws.contacts.length);
+  main.innerHTML = `<div class="vwrap ctv">
     <div class="ct-cols ${side ? "side" : ""}">
       <section class="ct-block"><div class="ct-head">${ICON.users}<h2>Lists</h2><span class="n">${ws.contactLists.length}</span><span class="spacer"></span>
         <button class="ghost icon" data-ctv="new-list" title="New list">${ICON.plus}</button></div>

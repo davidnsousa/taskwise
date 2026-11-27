@@ -101,7 +101,7 @@ function contactChipList(n) {
     const emails = ctEmails(it);
     const title = it.kind === "list" ? `list: ${emails.length} address${emails.length === 1 ? "" : "es"}` : it.x.email || "no email";
     return `<span class="ct-wrap ${it.kind}" data-ct="${id}" data-ct-note="${n.id}" title="${esc(title)}"${it.kind === "list" ? ` style="--people:${listColor(it.x)}"` : ""}>${it.kind === "list" ? ICON.users : ICON.user}`
-      + `<span class="ct-n">${esc(ctLabel(it))}</span><button class="ct-more" title="Contact menu" draggable="false">${ICON.more}</button></span>`;
+      + `<span class="ct-n">${esc(ctLabel(it))}</span></span>`;
   }).filter(Boolean);
 }
 const contactChips = n => contactChipList(n).join("");
@@ -116,17 +116,23 @@ function contactCard(it) {
     return `<div class="ct-card" style="--lc:${listColor(it.x)}">
       <div class="ct-card-head"><span class="av list">${ICON.users}</span><span class="who"><b>${esc(ctLabel(it))}</b>
         <span class="u">${m.length} contact${m.length === 1 ? "" : "s"}</span></span></div>
-      ${m.length ? `<div class="ct-card-mem">${m.slice(0, MAX).map(c => `<div><span class="nm">${esc(ctName(c))}</span><span class="u">${esc(c.email || "")}</span></div>`).join("")}
-        ${m.length > MAX ? `<div class="u">and ${m.length - MAX} more</div>` : ""}</div>` : `<div class="u ct-card-none">No members yet.</div>`}
+      ${m.length ? `<div class="ct-card-mem">${m.slice(0, MAX).map(c => `<span>${esc(ctName(c))}</span>`).join("")}
+        ${m.length > MAX ? `<span class="u">and ${m.length - MAX} more</span>` : ""}</div>` : `<div class="u ct-card-none">No members yet.</div>`}
     </div>`;
   }
   const c = it.x;
-  const items = [...(c.note ? [["Note", c.note]] : []), ...Object.entries(c.fields || {})];
+  const items = [...(c.email ? [["Email", c.email]] : []), ...(c.note ? [["Note", c.note]] : []), ...Object.entries(c.fields || {})];
   const inLists = ws.contactLists.filter(l => (l.members || []).includes(c.id));
+  // a web address opens in a new tab; every value has a copy button
+  const val = v => {
+    const s = String(v).trim();
+    const url = /^https?:\/\/\S+$/i.test(s) ? s : /^(www\.)?[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(s) && !s.includes("@") ? `https://${s}` : "";
+    return url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(s)}</a>` : esc(s);
+  };
   return `<div class="ct-card">
-    <div class="ct-card-head"><span class="av">${esc(initials(c.name || c.email))}</span><span class="who"><b>${esc(ctName(c))}</b>
-      <span class="u">${esc(c.email || "no email")}</span></span></div>
-    ${items.length ? `<div class="ct-details">${items.map(([k, v]) => `<span class="ct-dk">${esc(k)}</span><span class="ct-dv">${esc(v)}</span>`).join("")}</div>` : ""}
+    <div class="ct-card-head"><span class="av">${esc(initials(c.name || c.email))}</span><span class="who"><b>${esc(ctName(c))}</b></span></div>
+    ${items.length ? `<div class="ct-details">${items.map(([k, v]) => `<span class="ct-dk">${esc(k)}</span><span class="ct-dv">${val(v)}</span>`
+      + `<button class="ct-copy" data-copy="${esc(v)}" data-copy-what="${esc(k)}" title="Copy ${esc(k.toLowerCase())}">${ICON.copy}</button>`).join("")}</div>` : ""}
     ${inLists.length ? `<div class="ct-lists">${inLists.map(l => `<span class="ct-lchip" style="--lc:${listColor(l)}">${ICON.users}${esc(l.name)}</span>`).join("")}</div>` : ""}
   </div>`;
 }
@@ -140,10 +146,11 @@ function contactMenu(id, anchor, n, { details = false } = {}) {
     <button data-m="to">${ICON.mail} New email</button>
     <button data-m="cc">${ICON.mail} New email, as CC</button>
     <button data-m="bcc">${ICON.mail} New email, as BCC</button>
-    <button data-m="copy">${ICON.copy} Copy address${emails.length === 1 ? "" : "es"}</button>
+    ${details && it.kind === "contact" ? "" : `<button data-m="copy">${ICON.copy} Copy address${emails.length === 1 ? "" : "es"}</button>`}
     <hr><button data-m="edit">${ICON.edit} Edit…</button>
     ${n ? `<button data-m="remove" class="danger">${ICON.x} Remove from task</button>`
         : `<button data-m="delete" class="danger">${ICON.x} Delete ${it.kind}</button>`}`, d => {
+    if (d.copy != null) { copyText(d.copy).then(() => toast(`${d.copyWhat || "Text"} copied.`)); return; }
     switch (d.m) {
       case "to": case "cc": case "bcc": emailTo(emails, d.m, subject); break;
       case "copy":
@@ -182,20 +189,20 @@ function contactMenuFrom(el, at, opts) {
   contactMenu(host.dataset.ct, at || host.querySelector(".ct-more") || host, n, opts);
   return true;
 }
-// a left-click on a chip on a task opens its details with the menu under
-// them; its ⋯ and a right-click open the menu alone
+// a click or right-click on a chip on a task opens its details with every
+// option under them; a Contacts view row has its ⋯ and right-click menu
 document.addEventListener("click", e => {
   const el = e.target.closest?.(".ct-wrap, .ct-row .ct-more");
   if (!el) return;
   e.preventDefault(); e.stopPropagation();
-  const more = e.target.closest(".ct-more");
-  contactMenuFrom(el, more || el, { details: !more });
+  contactMenuFrom(el, el, { details: el.classList.contains("ct-wrap") });
 }, true);
 document.addEventListener("contextmenu", e => {
   const el = e.target.closest?.(".ct-wrap, .ct-row");
   if (!el) return;
-  const at = { getBoundingClientRect: () => ({ left: e.clientX, bottom: e.clientY }), closest: s => el.closest(s) };
-  if (contactMenuFrom(el, at)) { e.preventDefault(); e.stopPropagation(); }
+  const chip = el.classList.contains("ct-wrap");
+  const at = chip ? el : { getBoundingClientRect: () => ({ left: e.clientX, bottom: e.clientY }), closest: s => el.closest(s) };
+  if (contactMenuFrom(el, at, { details: chip })) { e.preventDefault(); e.stopPropagation(); }
 }, true);
 
 // ---------- editing ----------

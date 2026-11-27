@@ -575,11 +575,16 @@ input[type=range] { accent-color: var(--accent-strong); }
 .ct-card .who { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
 .ct-card .who b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ct-card .u { color: var(--faint); font-size: calc(12px * var(--ui-scale)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ct-card .ct-details { margin: 0; padding: 0; }
+.ct-card .ct-details { margin: 0; padding: 0; grid-template-columns: max-content minmax(0, 1fr) auto; align-items: center; gap: 2px 14px; }
+.ct-card .ct-dv { overflow-wrap: anywhere; }
+.ct-card .ct-dv a { color: var(--accent); text-decoration: none; }
+.ct-card .ct-dv a:hover { text-decoration: underline; }
+.menu .ct-copy { width: 24px; height: 24px; padding: 0; border: none; border-radius: 6px; background: none; box-shadow: none; color: var(--faint); justify-content: center; }
+.menu .ct-copy:hover { background: var(--hover); color: var(--text); }
+.menu .ct-copy .ic { width: 13px; height: 13px; }
 .ct-card .ct-lists { max-width: none; justify-content: flex-start; }
-.ct-card-mem { display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow: auto; }
-.ct-card-mem > div { display: flex; gap: 8px; align-items: baseline; min-width: 0; font-size: calc(12.5px * var(--ui-scale)); }
-.ct-card-mem .nm { flex-shrink: 0; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-card-mem { display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow: auto; font-size: calc(12.5px * var(--ui-scale)); }
+.ct-card-mem > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-label { font-size: calc(11px * var(--ui-scale)); color: var(--faint); padding: 6px 10px 3px; font-weight: 600; }
 
 /* ---------- sidebar ---------- */
@@ -1046,12 +1051,11 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .card.is-done .att { opacity: 0.55; }
 .ct-wrap .ct-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ct-more { width: 18px; height: 20px; padding: 0; border: none; background: none; box-shadow: none; color: var(--faint); opacity: 0; border-radius: 0 6px 6px 0; }
-.ct-wrap:hover .ct-more { opacity: 1; }
+.ct-wrap { padding-right: 8px; }
 .ct-more .ic { width: 13px; height: 13px; }
 .modal .ct-lbl { display: flex; align-items: center; justify-content: space-between; }
 .modal .ct-lbl .ct-mail { height: 24px; padding: 0 8px; font-size: calc(12px * var(--ui-scale)); gap: 5px; }
 .nv-links .ct-wrap { max-width: 320px; }
-.nv-links .ct-more { opacity: 1; }
 .ct-pick-list label .ic { color: var(--faint); }
 
 /* the contact and list editors */

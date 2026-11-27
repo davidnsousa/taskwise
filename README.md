@@ -56,6 +56,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - Add with the + on any section; the new task opens straight in the task panel
 - Tasks are Markdown with a `# Title` first line, rendered on the cards; `- [ ]` checkboxes are subtasks, and two or more show as a `2/5` chip (green once all are done) and a green progress bar along the card
 - A badge at the top right shows one number for what you got done today, tasks and subtasks together; click it to see which ones; it lights up on your best day of the week
+- On a card, ticked subtasks fold away behind a "✓ 7 done" line, so a long-running task shows what is still open; click it to show them again
 - Each task has a ⋯ button with the same menu as its right-click; on boards a card shows its whole text
 - The task panel shows the Markdown with a rendered preview under it that folds away
 - A bar over the text adds checkboxes, lists, headings, bold, italic, strikethrough, links, code and quotes (Ctrl+B and Ctrl+I work too)

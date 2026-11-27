@@ -39,7 +39,7 @@ function vCard(n, opts = {}) {
     <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>${noteMoreBtn}
     ${whereHtml(n, opts)}
     <div class="title">${esc(n.title || "(untitled)")}</div>
-    ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
+    ${cardBody(n)}
     <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}</div>
     ${attachRow(n)}
     ${taskBar(n)}

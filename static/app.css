@@ -375,6 +375,17 @@ input.rename { flex: 1; min-width: 0; height: 26px; padding: 0 8px; font-weight:
 .card .body:not(:has(> :nth-child(6))) { -webkit-mask-image: none; mask-image: none; }
 /* on boards a card shows its whole text */
 .column .card .body { max-height: none; -webkit-mask-image: none; mask-image: none; }
+/* ticked subtasks folded away (a ticked one that still has open ones under it stays) */
+.card .body.fold-done li.task.checked:not(:has(li.task:not(.checked))) { display: none; }
+/* a list left with nothing to show takes no room */
+.card .body.fold-done ul:not(:has(> li:not(.task.checked))):not(:has(li.task:not(.checked))) { display: none; }
+.done-fold, :where(.done-fold) { display: inline-flex; align-items: center; gap: 5px; height: 22px; margin-top: 4px; padding: 0 8px 0 6px; border: none; border-radius: 6px;
+  background: none; box-shadow: none; color: var(--faint); font-size: calc(11.5px * var(--ui-scale)); font-weight: 500; cursor: pointer; }
+.done-fold:hover { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
+.done-fold > .ic:first-child { width: 12px; height: 12px; color: var(--ok); }
+.done-fold .arrow { display: inline-flex; transition: transform 0.15s; }
+.done-fold .arrow .ic { width: 12px; height: 12px; }
+.done-fold.open .arrow { transform: rotate(90deg); }
 .card .meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; align-items: center; }
 .card .meta:empty { display: none; }
 .check {

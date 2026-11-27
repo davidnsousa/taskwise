@@ -732,11 +732,30 @@ document.addEventListener("contextmenu", e => {
   if (linkMenuFrom(el, at)) { e.preventDefault(); e.stopPropagation(); }
 }, true);
 
+// A card's text with its ticked subtasks folded away behind a "12 done"
+// line, so a long-running task shows what is still open. Only the card
+// hides them: the text, the 2/5 chip and the bar still count every one.
+const doneOpen = new Set();   // tasks whose ticked subtasks are unfolded (until reload)
+function cardBody(n) {
+  if (!(n.body || "").trim()) return "";
+  const done = MD.taskCount(n.body).done, open = doneOpen.has(n.id);
+  return `<div class="body md ${done && !open ? "fold-done" : ""}">${MD.render(n.body, { tasks: true })}</div>`
+    + (done ? `<button class="done-fold ${open ? "open" : ""}" data-done-fold="${n.id}" draggable="false"
+        title="${open ? "Hide the ticked subtasks" : "Show the ticked subtasks"}">${ICON.check}${done} done<span class="arrow">${ICON.chevron}</span></button>` : "");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest?.("[data-done-fold]"); if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  const id = b.dataset.doneFold;
+  doneOpen.has(id) ? doneOpen.delete(id) : doneOpen.add(id);
+  renderMain();
+}, true);
+
 function cardHtml(n) {
   return `<div class="card ${isDone(n) ? "is-done" : ""}" draggable="true" data-note="${n.id}">
     <button class="check" data-act="done" title="${isDone(n) ? "not done" : "mark done"}">${ICON.check}</button>${noteMoreBtn}
     <div class="title">${esc(n.title || "(untitled)")}</div>
-    ${(n.body || "").trim() ? `<div class="body md">${MD.render(n.body, { tasks: true })}</div>` : ""}
+    ${cardBody(n)}
     <div class="meta">${depBadge(n)}${taskBadge(n)}${dueBadge(n)}${tagPills(n)}</div>
     ${attachRow(n)}
     ${taskBar(n)}

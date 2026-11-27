@@ -85,7 +85,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - A contact's fields can be edited, and added by hand, in the contact editor. In the Contacts view a row shows the email and lists, and a Details button opens the note and fields (search opens it by itself when a field matches)
 - Add contacts or whole lists to a task with **+ contact** in its panel (where you can also add a new contact on the spot), or from the task's right-click menu › Add contact or list…
 - On a task, links and files sit on one row and contacts and lists on the row under it
-- A contact or list on a task opens a menu (click, ⋯ or right-click): new email to them as To, CC or BCC (the task's title is the subject), copy the addresses, edit, or remove from the task. The task's own menu can email everyone on it
+- Clicking a contact or list on a task opens its details (email, note, fields and lists; for a list, its members) with its menu under them. Its ⋯ or a right-click opens the menu alone: new email to them as To, CC or BCC (the task's title is the subject), copy the addresses, edit, or remove from the task. The task's own menu can email everyone on it
 - Settings › Email picks how messages open: Outlook (web), Gmail (web) or your default mail app. It starts unset. The chosen app's To, CC and BCC links can be edited there (with `{addresses}`, `{subject}` and `{mailto}`), and reset to their defaults
 
 ## Network use

@@ -565,6 +565,21 @@ input[type=range] { accent-color: var(--accent-strong); }
 .menu .colors { padding: 6px 10px; }
 .menu > button .ic { color: var(--faint); }
 .menu > button .gdot { margin-right: 2px; box-shadow: none; }
+/* a contact's details on top of its menu */
+.menu:has(> .ct-card) { min-width: 280px; max-width: 360px; }
+.ct-card { padding: 8px 10px 10px; margin: -2px -2px 4px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 9px; user-select: text; cursor: auto; }
+.ct-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ct-card .av { flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--people) 18%, transparent); color: var(--people); font-size: calc(12px * var(--ui-scale)); font-weight: 650; }
+.ct-card .av.list { background: color-mix(in srgb, var(--lc) 18%, transparent); color: var(--lc); }
+.ct-card .av .ic { width: 16px; height: 16px; }
+.ct-card .who { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.ct-card .who b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-card .u { color: var(--faint); font-size: calc(12px * var(--ui-scale)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-card .ct-details { margin: 0; padding: 0; }
+.ct-card .ct-lists { max-width: none; justify-content: flex-start; }
+.ct-card-mem { display: flex; flex-direction: column; gap: 3px; max-height: 190px; overflow: auto; }
+.ct-card-mem > div { display: flex; gap: 8px; align-items: baseline; min-width: 0; font-size: calc(12.5px * var(--ui-scale)); }
+.ct-card-mem .nm { flex-shrink: 0; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-label { font-size: calc(11px * var(--ui-scale)); color: var(--faint); padding: 6px 10px 3px; font-weight: 600; }
 
 /* ---------- sidebar ---------- */

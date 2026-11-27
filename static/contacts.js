@@ -109,13 +109,34 @@ const contactChips = n => contactChipList(n).join("");
 // ---------- the contact / list menu ----------
 // From a task (n) it can take the contact off the task and uses the task's
 // title as the subject; elsewhere it deletes the contact itself (undoable).
-function contactMenu(id, anchor, n) {
+// details: a card on top with who it is (a left-click on a chip on a task)
+function contactCard(it) {
+  if (it.kind === "list") {
+    const m = listMembers(it.x), MAX = 8;
+    return `<div class="ct-card" style="--lc:${listColor(it.x)}">
+      <div class="ct-card-head"><span class="av list">${ICON.users}</span><span class="who"><b>${esc(ctLabel(it))}</b>
+        <span class="u">${m.length} contact${m.length === 1 ? "" : "s"}</span></span></div>
+      ${m.length ? `<div class="ct-card-mem">${m.slice(0, MAX).map(c => `<div><span class="nm">${esc(ctName(c))}</span><span class="u">${esc(c.email || "")}</span></div>`).join("")}
+        ${m.length > MAX ? `<div class="u">and ${m.length - MAX} more</div>` : ""}</div>` : `<div class="u ct-card-none">No members yet.</div>`}
+    </div>`;
+  }
+  const c = it.x;
+  const items = [...(c.note ? [["Note", c.note]] : []), ...Object.entries(c.fields || {})];
+  const inLists = ws.contactLists.filter(l => (l.members || []).includes(c.id));
+  return `<div class="ct-card">
+    <div class="ct-card-head"><span class="av">${esc(initials(c.name || c.email))}</span><span class="who"><b>${esc(ctName(c))}</b>
+      <span class="u">${esc(c.email || "no email")}</span></span></div>
+    ${items.length ? `<div class="ct-details">${items.map(([k, v]) => `<span class="ct-dk">${esc(k)}</span><span class="ct-dv">${esc(v)}</span>`).join("")}</div>` : ""}
+    ${inLists.length ? `<div class="ct-lists">${inLists.map(l => `<span class="ct-lchip" style="--lc:${listColor(l)}">${ICON.users}${esc(l.name)}</span>`).join("")}</div>` : ""}
+  </div>`;
+}
+function contactMenu(id, anchor, n, { details = false } = {}) {
   const it = ctItem(id); if (!it) return;
   const emails = ctEmails(it), subject = n?.title || "";
   const ov = anchor.closest?.(".overlay");
   const info = it.kind === "list" ? `${listMembers(it.x).length} contact${listMembers(it.x).length === 1 ? "" : "s"}` : it.x.email || "no email";
   popMenu(anchor, `
-    <div class="menu-label">${esc(ctLabel(it))} · ${esc(info)}</div>
+    ${details ? contactCard(it) : `<div class="menu-label">${esc(ctLabel(it))} · ${esc(info)}</div>`}
     <button data-m="to">${ICON.mail} New email</button>
     <button data-m="cc">${ICON.mail} New email, as CC</button>
     <button data-m="bcc">${ICON.mail} New email, as BCC</button>
@@ -155,17 +176,20 @@ function deleteContact(id) {
 
 // the ⋯ or a click on a chip, the ⋯ on a Contacts view row, or a right-click
 // on any of them. Caught before the card and task panel handlers.
-function contactMenuFrom(el, at) {
+function contactMenuFrom(el, at, opts) {
   const host = el.closest("[data-ct]"); if (!host) return false;
   const n = host.dataset.ctNote ? note(host.dataset.ctNote) : null;
-  contactMenu(host.dataset.ct, at || host.querySelector(".ct-more") || host, n);
+  contactMenu(host.dataset.ct, at || host.querySelector(".ct-more") || host, n, opts);
   return true;
 }
+// a left-click on a chip on a task opens its details with the menu under
+// them; its ⋯ and a right-click open the menu alone
 document.addEventListener("click", e => {
   const el = e.target.closest?.(".ct-wrap, .ct-row .ct-more");
   if (!el) return;
   e.preventDefault(); e.stopPropagation();
-  contactMenuFrom(el, e.target.closest(".ct-more") || el);
+  const more = e.target.closest(".ct-more");
+  contactMenuFrom(el, more || el, { details: !more });
 }, true);
 document.addEventListener("contextmenu", e => {
   const el = e.target.closest?.(".ct-wrap, .ct-row");

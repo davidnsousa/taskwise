@@ -1014,7 +1014,8 @@ button.act-c:hover { outline: 1px solid var(--border-strong); outline-offset: 1p
 .ct-wrap.list { font-weight: 600; }
 
 /* a card's attachments row, under its tags */
-.att { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.att { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.att-row { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
 .card .meta:empty + .att { margin-top: 10px; }
 .card.is-done .att { opacity: 0.55; }
 .ct-wrap .ct-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

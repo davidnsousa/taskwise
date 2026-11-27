@@ -642,8 +642,11 @@ const linkChips = n => linkChipList(n).join("");
 // lists) gets its own row under the tags, all of it shown
 function attachRow(n) {
   const links = linkChipList(n);
-  const all = [...links.filter(h => h.includes("lnk-wrap web")), ...links.filter(h => h.includes("lnk-wrap file")), ...contactChipList(n)];
-  return all.length ? `<div class="att">${all.join("")}</div>` : "";
+  // links and files on one row, contacts on their own row under it
+  const lk = [...links.filter(h => h.includes("lnk-wrap web")), ...links.filter(h => h.includes("lnk-wrap file"))];
+  const ct = contactChipList(n);
+  const rows = [lk.length ? `<div class="att-row">${lk.join("")}</div>` : "", ct.length ? `<div class="att-row">${ct.join("")}</div>` : ""].join("");
+  return rows ? `<div class="att">${rows}</div>` : "";
 }
 
 // the ⋯ on a note's link: open, edit, copy or take it off the note. Caught

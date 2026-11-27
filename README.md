@@ -83,6 +83,7 @@ an hour. To update, run `git pull` and then `./install.sh` again.
 - A header row is detected by itself. Its name (or first and last name), email and note columns are used, and every other column (phone, company, school…) is kept as a field on each contact. For someone already in your contacts, only missing fields are filled in
 - A contact's fields can be edited, and added by hand, in the contact editor. In the Contacts view a row shows the email and lists, and a Details button opens the note and fields (search opens it by itself when a field matches)
 - Add contacts or whole lists to a task with **+ contact** in its panel (where you can also add a new contact on the spot), or from the task's right-click menu › Add contact or list…
+- On a task, links and files sit on one row and contacts and lists on the row under it
 - A contact or list on a task opens a menu (click, ⋯ or right-click): new email to them as To, CC or BCC (the task's title is the subject), copy the addresses, edit, or remove from the task. The task's own menu can email everyone on it
 - Settings › Email picks how messages open: Outlook (web), Gmail (web) or your default mail app. It starts unset. The chosen app's To, CC and BCC links can be edited there (with `{addresses}`, `{subject}` and `{mailto}`), and reset to their defaults
 
